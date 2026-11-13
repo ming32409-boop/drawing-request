@@ -1,0 +1,9 @@
+# 機密與本機設定：不可提交
+.env
+.env.*
+supabase/.temp/
+supabase/.branches/
+
+# 套件與系統檔
+node_modules/
+.DS_Store

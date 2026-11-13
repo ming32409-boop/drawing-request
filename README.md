@@ -3,12 +3,12 @@
 需求見 [需求筆記.txt](需求筆記.txt)，專案規則見 [AGENTS.md](AGENTS.md)。
 
 ## 架構
-- 網頁：GitHub Pages（`main` 分支根目錄），在 LINE 裡用 LIFF 開啟。目前有「新增申請」「我的申請」。
+- 網頁：GitHub Pages（`main` 分支根目錄），在 LINE 裡用 LIFF 開啟。目前有「新增申請」「我的申請」「待我簽核」。
   - 網址：https://ming32409-boop.github.io/drawing-request/
   - LINE 裡開啟：https://liff.line.me/2012594772-22NJxRHt
 - 登入：LINE Login
 - 資料庫：Supabase（`supabase/schema.sql`）
-- 通知：LINE 官方帳號（Messaging API），由 Supabase Edge Functions 發送（製作中）
+- 通知：LINE 官方帳號（Messaging API），由 Edge Function `line-notify` 發送
 
 ## 公開設定值
 這些值本來就會出現在網頁裡，可以公開：
@@ -27,6 +27,7 @@ Supabase secret key、LINE Channel secret、Channel access token **不可以**�
 1. `supabase/schema.sql`
 2. `supabase/002_require_active.sql`
 3. `supabase/003_grant_service_role.sql`（開放權限給後端；本專案設定為新資料表不自動開放，連後端也包含在內）
+4. `supabase/004_notification_outbox.sql`（LINE 通知待發清單的領取與回報函式）
 
 ### 資料庫重點
 - 未登入的訪客沒有任何權限。
@@ -44,6 +45,13 @@ Supabase secret key、LINE Channel secret、Channel access token **不可以**�
 - 部署時要關閉 **Verify JWT**（`supabase/config.toml` 已設定）。
 - 只使用 Supabase 自動提供的環境變數，不需要另外設定任何金鑰。
 - LIFF 的 Endpoint URL：`https://ming32409-boop.github.io/drawing-request/`
+
+## LINE 通知（Edge Function `line-notify`）
+- 資料庫函式在送出、簽核、發放時把通知寫入 `notifications`；網頁動作完成後呼叫 `line-notify`，由它推播給對象並標記已發送。
+- 同一則通知只會成功發送一次；失敗會記錄錯誤，1 分鐘後可重試，最多 3 次。
+- 需要在 Supabase → Edge Functions → **Secrets** 設定 `LINE_CHANNEL_ACCESS_TOKEN`（官方帳號 Messaging API 的長期 Channel access token），**不可**寫進任何檔案。
+- 部署時要關閉 **Verify JWT**（`supabase/config.toml` 已設定）。
+- 通知連結：`https://liff.line.me/2012594772-22NJxRHt?tab=review`（待簽核）、`?tab=issue`（待發放）、`?tab=mine`（我的申請）。
 
 ### 第一位系統管理員
 第一次用 LINE 登入後，在 SQL Editor 執行（把名字換成登入頁顯示的名字）：
@@ -70,7 +78,7 @@ tests/run_db_tests.sh
 Edge Function 測試（需要 Deno）：
 
 ```bash
-LINE_LOGIN_TEST=1 deno test --allow-env --allow-net=127.0.0.1 supabase/functions/line-login/
+LINE_LOGIN_TEST=1 LINE_NOTIFY_TEST=1 deno test --allow-env --allow-net=127.0.0.1 supabase/functions/
 ```
 
 網頁端對端測試（需要 Node.js；第一次先在 `tests/` 執行 `npm install` 和 `npx playwright install chromium`）：

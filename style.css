@@ -113,6 +113,19 @@ button.danger { background: #fff; color: var(--error); border: 1px solid var(--e
 .timeline li { margin: 0 0 8px; display: flex; flex-direction: column; }
 .t-time { color: var(--muted); font-size: 0.8rem; }
 .t-what { font-weight: 600; }
-.t-note { color: var(--error); font-size: 0.9rem; }
+.t-note { color: var(--muted); font-size: 0.9rem; }
+.t-note.reject { color: var(--error); }
 .muted { color: var(--muted); font-size: 0.9rem; }
+/* 待我簽核 */
+.tabs a .count {
+  display: inline-block; min-width: 20px; padding: 0 6px; margin-left: 2px; border-radius: 999px;
+  background: #e5484d; color: #fff; font-size: 0.75rem; line-height: 20px;
+}
+.review-body { padding: 12px; }
+.review-body .detail { margin-top: 8px; }
+.review-actions { display: grid; grid-template-columns: 1fr 2fr; gap: 8px; margin-top: 12px; }
+.review-actions button { margin: 0; width: 100%; }
+.reject-box { margin-top: 12px; }
+.reject-box textarea { margin-top: 4px; }
+.reject-box .confirm-reject { width: 100%; }
 @media (max-width: 340px) { .choices { grid-template-columns: 1fr; } }

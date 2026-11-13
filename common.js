@@ -59,6 +59,19 @@
       // 資料庫函式回傳的中文訊息直接顯示
       return msg || "操作失敗，請稍後再試。";
     },
+    // 請後端發送待發的 LINE 通知（失敗不影響畫面，下次動作時會再補發）
+    triggerNotify: function () {
+      var cfg = window.APP_CONFIG;
+      try {
+        fetch(cfg.supabaseUrl + "/functions/v1/line-notify", {
+          method: "POST",
+          headers: { apikey: cfg.supabaseKey },
+          keepalive: true,
+        }).catch(function (err) { console.warn("LINE 通知觸發失敗", err); });
+      } catch (err) {
+        console.warn("LINE 通知觸發失敗", err);
+      }
+    },
     STATUS_CLASS: {
       "申請主管簽核中": "s-review",
       "核發主管簽核中": "s-review",

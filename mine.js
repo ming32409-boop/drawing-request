@@ -45,7 +45,7 @@
       li.appendChild(C.el("span", "t-time", C.formatTime(ev.created_at)));
       var who = ev.actor ? ev.actor.display_name : "";
       li.appendChild(C.el("span", "t-what", (stage ? stage + " " : "") + ev.action + (who ? "｜" + who : "")));
-      if (ev.note) li.appendChild(C.el("span", "t-note", ev.note));
+      if (ev.note) li.appendChild(C.el("span", ev.action === "駁回" ? "t-note reject" : "t-note", ev.note));
       ol.appendChild(li);
     });
     box.appendChild(ol);

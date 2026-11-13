@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#06c755">
   <title>圖面資料申請</title>
-  <link rel="stylesheet" href="style.css?v=6">
+  <link rel="stylesheet" href="style.css?v=7">
 </head>
 <body>
   <header class="site-header">
@@ -16,6 +16,7 @@
   <nav id="tabs" class="tabs" hidden>
     <a href="#new" data-tab="new">新增申請</a>
     <a href="#mine" data-tab="mine">我的申請</a>
+    <a href="#review" data-tab="review" hidden>待我簽核 <span id="review-count" class="count" hidden></span></a>
   </nav>
 
   <main>
@@ -119,15 +120,26 @@
       <div id="mine-message" class="message" role="status" aria-live="polite" hidden></div>
       <ul id="mine-list" class="request-list"></ul>
     </section>
+
+    <!-- 待我簽核 -->
+    <section id="view-review" class="card" hidden>
+      <div class="list-header">
+        <h2>待我簽核</h2>
+        <button type="button" id="review-refresh" class="secondary small">重新整理</button>
+      </div>
+      <div id="review-message" class="message" role="status" aria-live="polite" hidden></div>
+      <ul id="review-list" class="request-list"></ul>
+    </section>
   </main>
 
   <script src="https://static.line-scdn.net/liff/edge/2/sdk.js" charset="utf-8"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
-  <script src="config.js?v=6"></script>
-  <script src="auth.js?v=6"></script>
-  <script src="common.js?v=6"></script>
-  <script src="form.js?v=6"></script>
-  <script src="mine.js?v=6"></script>
-  <script src="app.js?v=6"></script>
+  <script src="config.js?v=7"></script>
+  <script src="auth.js?v=7"></script>
+  <script src="common.js?v=7"></script>
+  <script src="form.js?v=7"></script>
+  <script src="mine.js?v=7"></script>
+  <script src="review.js?v=7"></script>
+  <script src="app.js?v=7"></script>
 </body>
 </html>

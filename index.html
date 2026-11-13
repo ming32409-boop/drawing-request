@@ -9,12 +9,15 @@
   <meta property="og:title" content="圖面資料申請">
   <meta property="og:description" content="開發部圖面資料申請與簽核：點開後用 LINE 登入即可申請、簽核或查看進度。">
   <meta property="og:type" content="website">
-  <link rel="stylesheet" href="style.css?v=8">
+  <link rel="stylesheet" href="style.css?v=9">
 </head>
 <body>
   <header class="site-header">
     <h1>圖面資料申請</h1>
-    <p id="who" class="who"></p>
+    <div class="header-right">
+      <a id="dash-link" class="dash-link" href="dashboard.html" hidden>管理看板</a>
+      <p id="who" class="who"></p>
+    </div>
   </header>
 
   <nav id="tabs" class="tabs" hidden>
@@ -149,13 +152,13 @@
 
   <script src="https://static.line-scdn.net/liff/edge/2/sdk.js" charset="utf-8"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
-  <script src="config.js?v=8"></script>
-  <script src="auth.js?v=8"></script>
-  <script src="common.js?v=8"></script>
-  <script src="form.js?v=8"></script>
-  <script src="mine.js?v=8"></script>
-  <script src="review.js?v=8"></script>
-  <script src="issue.js?v=8"></script>
-  <script src="app.js?v=8"></script>
+  <script src="config.js?v=9"></script>
+  <script src="auth.js?v=9"></script>
+  <script src="common.js?v=9"></script>
+  <script src="form.js?v=9"></script>
+  <script src="mine.js?v=9"></script>
+  <script src="review.js?v=9"></script>
+  <script src="issue.js?v=9"></script>
+  <script src="app.js?v=9"></script>
 </body>
 </html>

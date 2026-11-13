@@ -136,10 +136,43 @@ val(f"update notifications set attempts = 3, last_attempt_at = now() - interval 
 ok(val(f"select count(*) from claim_notifications(100) where id={nid2}", role='service_role') == '0', 'gives up after 3 attempts')
 ok(val(f"select count(*) from claim_notifications(100) c join notifications n on n.id=c.id where n.sent_at is not null", role='service_role') == '0', 'sent notifications never re-claimed')
 
+# 005：管理看板
+expect_err("select dashboard_data()", U['app'], '沒有權限', 'applicant cannot view dashboard')
+expect_err("select count(*) from export_requests()", U['qcmgr'], '沒有權限', 'dept manager (non-issuer) cannot export')
+expect_err("select dashboard_data()", None, 'permission denied', 'anon cannot call dashboard', role='anon')
+ok(val("select dashboard_data()->'kpi'->>'total'", U['admin']) == val("select count(*) from requests", role=None), 'admin dashboard total matches')
+ok(val("select (dashboard_data()->'kpi'->>'total')::int > 0", U['dcc1']) == 't', 'dcc can view dashboard')
+# 歷史資料：固定時間，驗證處理時間與品號統計
+val(f"""insert into requests (doc_no, created_at, applicant_id, department_id, data_types, items, purpose, formats,
+      external_note, status, stage1_result, stage1_by, stage1_at, stage2_result, stage2_by, stage2_at,
+      delivery_method, delivered_by, delivered_at) values
+  ('DOC-20250105-901', '2025-01-05 01:00+00', '{U['app']}', {QC}, array['圖面'], E'HX-001/示範甲\\nHX-002/示範乙', '提供給客戶', array['2D PDF'],
+   '示範客戶A', '已發放結案', '已核准', '{U['qcmgr']}', '2025-01-05 03:00+00', '已核准', '{U['devmgr']}', '2025-01-05 07:00+00',
+   'Email', '{U['dcc1']}', '2025-01-05 08:00+00'),
+  ('DOC-20250210-902', '2025-02-10 01:00+00', '{U['app']}', {QC}, array['材質證明'], 'hx-001/示範甲 Rev.B', '提供給客戶', array['2D PDF'],
+   '示範客戶A', '已發放結案', '已核准', '{U['qcmgr']}', '2025-02-10 02:00+00', '已核准', '{U['devmgr']}', '2025-02-10 03:00+00',
+   'Email', '{U['dcc1']}', '2025-02-10 13:00+00')""", role=None)
+val("""insert into requests (doc_no, created_at, applicant_id, department_id, data_types, items, purpose, formats,
+      status, stage1_result, stage1_by, stage1_at, stage1_reason) values
+  ('DOC-20250211-903', '2025-02-11 01:00+00', '"""+U['app']+"""', """+QC+""", array['圖面'], 'HX-003/示範丙', '設計參考', array['2D PDF'],
+   '已駁回', '已駁回', '"""+U['qcmgr']+"""', '2025-02-11 05:00+00', '用途不明')""", role=None)
+D = "dashboard_data('2025-01-01', '2025-02-28')"
+ok(val(f"select {D}->'kpi'->>'total'", U['admin']) == '3', 'date filter: 3 requests in Jan-Feb 2025')
+ok(val(f"select string_agg(m->>'month'||':'||(m->>'total'), ',') from jsonb_array_elements({D}->'monthly') m", U['admin']) == '2025-01:1,2025-02:2', 'monthly series incl. counts')
+ok(val(f"select {D}->'speed'->'stage1'->>'avg_hours'", U['admin']) == '2.3', 'stage1 avg hours (2,1,4)/3')
+ok(val(f"select {D}->'speed'->'issue'->>'avg_hours'", U['admin']) == '5.5', 'issue avg hours (1,10)/2')
+ok(val(f"select {D}->'speed'->'total'->>'median_hours'", U['admin']) == '9.5', 'total median hours (7,12)')
+ok(val(f"select ({D}->'top_items'->0->>'part')||'|'||({D}->'top_items'->0->>'n')||'|'||({D}->'top_items'->0->>'name')", U['admin']) == 'HX-001|2|示範甲 Rev.B', 'top item merges case, latest name')
+ok(val(f"select ({D}->'external_targets'->0->>'label')||'|'||({D}->'external_targets'->0->>'n')", U['admin']) == '示範客戶A|2', 'external targets')
+ok(val(f"select ({D}->'reject_reasons'->0->>'label')||'|'||({D}->'kpi'->>'rejected_stage1')||'|'||({D}->'kpi'->>'decided')", U['admin']) == '用途不明|1|3', 'reject reasons and counts')
+ok(val("select count(*) from export_requests('2025-01-01', '2025-02-28')", U['devmgr']) == '3', 'export respects date range')
+ok(val("select applicant||'|'||department||'|'||coalesce(delivered_by,'') from export_requests('2025-01-05', '2025-01-05')", U['devmgr']) == '示範app|品管課|示範dcc1', 'export resolves names')
+ok(val("select dashboard_data('2030-01-01','2030-01-31')->'kpi'->>'total'", U['admin']) == '0', 'empty range ok')
+
 # stats
 expect_err("select request_stats()", U['app'], '沒有權限', 'applicant cannot see stats')
 st = val("select request_stats()->>'total'||','||(request_stats()->>'issued')", U['admin'])
-ok(st == '4,1', 'admin sees stats ' + st)
+ok(st == '7,3', 'admin sees stats ' + st)
 # admin
 ok(val(f"with u as (update profiles set is_admin=true where id='{U['app']}' returning 1) select count(*) from u", U['app']) == '0', 'non-admin cannot change roles')
 ok(val(f"with u as (update profiles set is_dcc=true where id='{U['app2']}' returning 1) select count(*) from u", U['admin']) == '1', 'admin can change roles')

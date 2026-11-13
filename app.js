@@ -52,6 +52,8 @@
         .eq("id", session.user.id).single();
       if (me.error) throw me.error;
       document.getElementById("who").textContent = me.data.display_name;
+      document.getElementById("dash-link").hidden =
+        !(me.data.active && (me.data.is_admin || me.data.is_issuer || me.data.is_dcc));
 
       if (!me.data.active) {
         C.showMessage(statusEl, "info", "登入成功：" + me.data.display_name + "（待啟用）");

@@ -9,5 +9,5 @@ DB="drawing_web_$$"
 psql -d postgres -qc "create database $DB"
 trap 'psql -d postgres -qc "drop database if exists $DB"' EXIT
 psql -d "$DB" -q -v ON_ERROR_STOP=1 -f supabase_stub.sql \
-  -f ../supabase/schema.sql -f ../supabase/002_require_active.sql -f ../supabase/003_grant_service_role.sql -f ../supabase/004_notification_outbox.sql
+  -f ../supabase/schema.sql -f ../supabase/002_require_active.sql -f ../supabase/003_grant_service_role.sql -f ../supabase/004_notification_outbox.sql -f ../supabase/005_dashboard.sql
 node web/e2e.test.js "$DB"

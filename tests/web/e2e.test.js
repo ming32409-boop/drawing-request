@@ -47,6 +47,7 @@ const rpcArgs = {
   withdraw_request: `p_request_id => ($1::jsonb->>'p_request_id')::uuid`,
   deliver_request: `p_request_id => ($1::jsonb->>'p_request_id')::uuid, p_method => $1::jsonb->>'p_method',
     p_method_other => $1::jsonb->>'p_method_other'`,
+  dashboard_data: `p_from => ($1::jsonb->>'p_from')::date, p_to => ($1::jsonb->>'p_to')::date`,
   review_request: `p_request_id => ($1::jsonb->>'p_request_id')::uuid, p_approve => ($1::jsonb->>'p_approve')::boolean,
     p_reason => $1::jsonb->>'p_reason'`,
 };
@@ -93,6 +94,9 @@ async function api(route) {
         from public.request_events e left join public.profiles pr on pr.id = e.actor_id where e.request_id = $1 order by e.id`, [p.get('request_id').slice(3)]));
     }
     const m = u.pathname.match(/^\/rest\/v1\/rpc\/(\w+)$/);
+    if (m && m[1] === 'export_requests') {
+      return reply(await asUser(uid, `select * from public.export_requests(p_from => ($1::jsonb->>'p_from')::date, p_to => ($1::jsonb->>'p_to')::date)`, [q.postData()]));
+    }
     if (m && rpcArgs[m[1]]) {
       const rows = await asUser(uid, `select public.${m[1]}(${rpcArgs[m[1]]}) as v`, [q.postData()]);
       return reply(rows[0].v);
@@ -242,6 +246,20 @@ async function api(route) {
     await pg.waitForSelector('#tabs:not([hidden])');
     return pg;
   }
+  async function openAsDash(uid, viewport) {
+    const opts = viewport ? { viewport, acceptDownloads: true } : { ...devices['iPhone 13'], acceptDownloads: true };
+    const c = await b3.newContext(opts);
+    await c.route('https://static.line-scdn.net/**', r => r.fulfill({ contentType: 'application/javascript', body:
+      `window.liff={init:async()=>{},isLoggedIn:()=>true,login:()=>{},logout:()=>{},getIDToken:()=>'fake.id.token-for-testing',getDecodedIDToken:()=>({sub:'U'+'7'.repeat(32)})};` }));
+    await c.route('https://cdn.jsdelivr.net/**', r => r.fulfill({ body: UMD, contentType: 'application/javascript' }));
+    await c.route(SB + '/**', api);
+    global.CURRENT = uid;
+    const pg = await c.newPage();
+    pg.on('pageerror', e => ok(false, 'page error ' + e));
+    await pg.goto(PAGE + 'dashboard.html');
+    await pg.waitForFunction(() => !document.getElementById('status').textContent.includes('登入中'));
+    return pg;
+  }
   async function submitAs(uid, dept, items) {
     await asUser(uid, `select public.submit_request((select id from public.departments where name = $1), null, array['圖面'],
       $2, '設計參考', null, array['2D PDF'], null, null, null)`, [dept, items]);
@@ -359,6 +377,84 @@ async function api(route) {
   await itM.locator('.item-head').click();
   ok((await itM.locator('.detail').textContent()).includes('其他（現場交付（測試））'), 'applicant sees delivery method');
   await pg.context().close();
+
+  // ===== 第 9 步：管理看板 =====
+  // 歷史資料：近幾個月，含處理時間、外部對象、駁回原因
+  await pool.query(`
+    insert into public.requests (doc_no, created_at, applicant_id, department_id, data_types, items, purpose, formats, external_note,
+      status, stage1_result, stage1_by, stage1_at, stage2_result, stage2_by, stage2_at, stage1_reason,
+      delivery_method, delivered_by, delivered_at)
+    select 'DOC-19990101-' || lpad((900 + g)::text, 3, '0'),
+           date_trunc('month', now()) - (g % 4) * interval '1 month' + interval '2 days',
+           '${U.app}', (select id from public.departments where name = case when g % 3 = 0 then '品管課' else '開發部' end),
+           case when g % 2 = 0 then array['圖面'] else array['圖面','材質證明'] end,
+           'HP-' || (g % 3) || '/示範零件' || (g % 3) || E'\nHP-9/=SUM(A1)',
+           case when g % 2 = 0 then '提供給客戶' else '設計參考' end, array['2D PDF'],
+           case when g % 2 = 0 then '示範客戶B' end,
+           case when g % 5 = 0 then '已駁回' else '已發放結案' end,
+           case when g % 5 = 0 then '已駁回' else '已核准' end, '${U.mgr}',
+           date_trunc('month', now()) - (g % 4) * interval '1 month' + interval '2 days 2 hours',
+           case when g % 5 = 0 then '待第一關簽核' else '已核准' end, case when g % 5 = 0 then null else '${ISS}'::uuid end,
+           case when g % 5 = 0 then null else date_trunc('month', now()) - (g % 4) * interval '1 month' + interval '2 days 10 hours' end,
+           case when g % 5 = 0 then '資料不足（測試）' end,
+           case when g % 5 = 0 then null else 'Email' end, case when g % 5 = 0 then null else '${DCC}'::uuid end,
+           case when g % 5 = 0 then null else date_trunc('month', now()) - (g % 4) * interval '1 month' + interval '2 days 11 hours' end
+    from generate_series(1, 20) g;
+    update public.requests set external_note = '=1+1' where doc_no = 'DOC-19990101-902';`);
+
+  // 一般申請人：沒有權限
+  pg = await openAsDash(U.app);
+  ok((await pg.textContent('#status')).includes('只開放給') && await pg.locator('#dash').isHidden(), 'dashboard: applicant denied');
+  await pg.context().close();
+
+  pg = await openAsDash(ISS, { width: 1280, height: 900 });
+  await pg.waitForSelector('#tiles .tile');
+  const total = (await pool.query(`select count(*)::int n from public.requests where (created_at at time zone 'Asia/Taipei')::date >= date_trunc('month', (now() at time zone 'Asia/Taipei') - interval '11 months')`)).rows[0].n;
+  ok(await pg.locator('#tiles .tile .value').first().textContent() === String(total), 'tile total matches DB (' + total + ')');
+  ok(await pg.locator('#monthly .col').count() === 12, '12 monthly columns for 近 12 個月');
+  ok(await pg.locator('#speed .hbar').count() === 3 && await pg.locator('#speed .tag').count() === 1, 'speed: 3 stages, one marked 最久');
+  ok((await pg.locator('#speed .hbar', { hasText: '第二關' }).locator('.tag').count()) === 1, 'stage2 (8h) is the slowest');
+  ok((await pg.textContent('#top-items')).includes('HP-9') && (await pg.textContent('#top-items')).includes('HP-0'), 'top items lists part numbers');
+  ok((await pg.textContent('#external-targets')).includes('示範客戶B'), 'external targets listed');
+  ok((await pg.textContent('#reject-reasons')).includes('資料不足（測試）'), 'reject reasons listed');
+  ok((await pg.locator('#purpose .flag').count()) >= 1, 'external purposes flagged ⚠');
+  await pg.locator('#monthly .col').last().hover();
+  ok(!(await pg.locator('#tooltip').isHidden()) && (await pg.textContent('#tooltip')).includes('申請'), 'hover tooltip on month column');
+  await pg.locator('#speed .hbar').first().focus();
+  ok(!(await pg.locator('#tooltip').isHidden()) && (await pg.textContent('#tooltip')).includes('中位數'), 'keyboard focus shows tooltip');
+  if (process.env.SHOT_DIR) await pg.screenshot({ path: process.env.SHOT_DIR + '/s9-desktop.png', fullPage: true });
+
+  // 篩選：本月
+  await pg.selectOption('#preset', 'month');
+  await pg.waitForFunction(() => document.querySelectorAll('#monthly .col').length === 1);
+  ok(await pg.inputValue('#from') !== '' && await pg.locator('#monthly .col').count() === 1, 'preset 本月 refilters');
+
+  // 匯出
+  await pg.selectOption('#preset', 'all');
+  await pg.waitForFunction(() => document.querySelectorAll('#monthly .col').length > 1);
+  const [dl] = await Promise.all([pg.waitForEvent('download'), pg.click('#export-btn')]);
+  const csv = fs.readFileSync(await dl.path(), 'utf8');
+  const allN = (await pool.query('select count(*)::int n from public.requests')).rows[0].n;
+  ok(csv.charCodeAt(0) === 0xfeff && csv.split('\r\n')[0].startsWith('\ufeff單號,申請時間,申請人'), 'CSV has BOM + Chinese headers');
+  ok(csv.split('\r\n').length === allN + 1, 'CSV has all rows (' + allN + ')');
+  ok(csv.includes(",'=1+1,") && !csv.includes(",=1+1,"), 'CSV guards formula injection');
+  ok(/^drawing-requests_all_\d{4}-\d{2}-\d{2}\.csv$/.test(dl.suggestedFilename()), 'download filename ' + dl.suggestedFilename());
+  await pg.context().close();
+
+  pg = await openAsDash(ISS);
+  await pg.waitForSelector('#tiles .tile');
+  if (process.env.SHOT_DIR) await pg.screenshot({ path: process.env.SHOT_DIR + '/s9-mobile.png', fullPage: true });
+  const overflow = await pg.evaluate(() => Math.max(document.documentElement.scrollWidth, document.body.scrollWidth) > document.documentElement.clientWidth + 1);
+  ok(!overflow, 'dashboard: no horizontal scroll on phone');
+  await pg.context().close();
+
+  // 申請頁：有權限的人看到「管理看板」連結
+  pg = await openAs(ISS, PAGE);
+  ok(await pg.locator('#dash-link').isVisible(), 'issuer sees 管理看板 link');
+  await pg.context().close();
+  pg = await openAs(U.app, PAGE);
+  ok(await pg.locator('#dash-link').isHidden(), 'applicant has no 管理看板 link');
+  await pg.context().close();
   await b3.close();
   await pool.end(); server.close();
-})().catch(e => { console.error(e); process.exitCode = 1; pool.end(); server.close(); });
+})().catch(e => { console.error(e); process.exit(1); });

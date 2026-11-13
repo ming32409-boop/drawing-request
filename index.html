@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="zh-Hant-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#06c755">
+  <title>圖面資料申請</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="site-header">
+    <h1>圖面資料申請</h1>
+  </header>
+  <main>
+    <section class="card">
+      <h2>登入狀態</h2>
+      <div id="status" class="message info" role="status" aria-live="polite">登入中…</div>
+      <dl id="me" class="me" hidden>
+        <dt>姓名</dt><dd id="me-name"></dd>
+        <dt>帳號狀態</dt><dd id="me-active"></dd>
+        <dt>角色</dt><dd id="me-roles"></dd>
+        <dt>管理的部門</dt><dd id="me-depts"></dd>
+      </dl>
+      <p id="pending-hint" class="hint" hidden>
+        帳號已建立，請通知系統管理員為你啟用帳號。啟用後重新開啟本頁即可使用。
+      </p>
+      <button type="button" id="retry-btn" class="secondary" hidden>重新登入</button>
+    </section>
+  </main>
+  <script src="https://static.line-scdn.net/liff/edge/2/sdk.js" charset="utf-8"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+  <script src="config.js"></script>
+  <script src="auth.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

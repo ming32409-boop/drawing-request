@@ -45,7 +45,10 @@ const rpcArgs = {
     p_formats => array(select jsonb_array_elements_text($1::jsonb->'p_formats')), p_format_other => $1::jsonb->>'p_format_other',
     p_need_date => ($1::jsonb->>'p_need_date')::date, p_external_note => $1::jsonb->>'p_external_note'`,
   withdraw_request: `p_request_id => ($1::jsonb->>'p_request_id')::uuid`,
+  review_request: `p_request_id => ($1::jsonb->>'p_request_id')::uuid, p_approve => ($1::jsonb->>'p_approve')::boolean,
+    p_reason => $1::jsonb->>'p_reason'`,
 };
+let notifyCalls = 0;
 const H = { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*', 'access-control-allow-methods': '*', 'access-control-expose-headers': '*', 'content-type': 'application/json' };
 const calls = [];
 async function api(route) {
@@ -55,6 +58,7 @@ async function api(route) {
   const uid = subOf(q.headers()['authorization']);
   calls.push(q.method() + ' ' + u.pathname);
   try {
+    if (u.pathname === '/functions/v1/line-notify') { notifyCalls++; return reply({ sent: 0, failed: 0 }); }
     if (u.pathname === '/functions/v1/line-login') return reply({ access_token: jwtFor(global.CURRENT), refresh_token: 'r', expires_at: 9999999999 });
     if (u.pathname === '/auth/v1/user') return reply({ id: uid, aud: 'authenticated', role: 'authenticated' });
     if (u.pathname.startsWith('/auth/v1/logout')) return route.fulfill({ status: 204, headers: H });
@@ -62,7 +66,19 @@ async function api(route) {
       const rows = await asUser(uid, 'select id, display_name, is_admin, is_issuer, is_dcc, active from public.profiles where id = $1', [p.get('id').slice(3)]);
       return q.headers()['accept'].includes('object') ? (rows.length ? reply(rows[0]) : reply({ code: 'PGRST116', message: 'no rows' }, 406)) : reply(rows);
     }
-    if (u.pathname === '/rest/v1/departments') return reply(await asUser(uid, 'select id, name from public.departments where active order by sort_order, id'));
+    if (u.pathname === '/rest/v1/departments') return reply(await asUser(uid, 'select id, name, manager_id from public.departments where active order by sort_order, id'));
+    if (u.pathname === '/rest/v1/requests' && p.get('status')) {
+      // 待我簽核：status=eq.X，可能有 department_id=in.(1,2)
+      const ids = p.get('department_id') ? p.get('department_id').replace(/^in\.\(|\)$/g, '').split(',').map(Number) : null;
+      return reply(await asUser(uid, `select ${REQ_COLS}, r.department_id, r.stage1_at,
+          json_build_object('display_name', ap.display_name) as applicant,
+          case when s1.id is null then null else json_build_object('display_name', s1.display_name) end as stage1_by_profile,
+          case when d.id is null then null else json_build_object('name', d.name) end as department
+        from public.requests r left join public.departments d on d.id = r.department_id
+        left join public.profiles ap on ap.id = r.applicant_id left join public.profiles s1 on s1.id = r.stage1_by
+        where r.status = $1 and ($2::smallint[] is null or r.department_id = any($2)) order by r.created_at limit 100`,
+        [p.get('status').slice(3), ids]));
+    }
     if (u.pathname === '/rest/v1/requests') {
       return reply(await asUser(uid, `select ${REQ_COLS}, case when d.id is null then null else json_build_object('name', d.name) end as department
         from public.requests r left join public.departments d on d.id = r.department_id
@@ -202,5 +218,86 @@ async function api(route) {
   const p2 = await c2.newPage(); await p2.goto(PAGE);
   await p2.waitForSelector('#pending-hint:not([hidden])');
   ok(await p2.locator('#tabs').isHidden() && await p2.locator('#view-new').isHidden(), 'inactive user: no tabs/form');
-  await b2.close(); await pool.end(); server.close();
+  await b2.close();
+
+  // ===== 第 7 步：待我簽核 =====
+  const ISS = 'aaaaaaaa-0000-4000-8000-000000000004';
+  await pool.query(`insert into auth.users values ('${ISS}');
+    insert into public.profiles (id, line_user_id, display_name, active, is_issuer) values ('${ISS}', 'U${'4'.repeat(32)}', '示範核發主管', true, true);`);
+  const b3 = await chromium.launch();
+  async function openAs(uid, url) {
+    const c = await b3.newContext({ ...devices['iPhone 13'] });
+    await c.route('https://static.line-scdn.net/**', r => r.fulfill({ contentType: 'application/javascript', body:
+      `window.liff={init:async()=>{},isLoggedIn:()=>true,login:()=>{},logout:()=>{},getIDToken:()=>'fake.id.token-for-testing',getDecodedIDToken:()=>({sub:'U'+'7'.repeat(32)})};` }));
+    await c.route('https://cdn.jsdelivr.net/**', r => r.fulfill({ body: UMD, contentType: 'application/javascript' }));
+    await c.route(SB + '/**', api);
+    global.CURRENT = uid;
+    const pg = await c.newPage();
+    pg.on('pageerror', e => ok(false, 'page error ' + e));
+    pg.on('dialog', d => d.accept());
+    await pg.goto(url);
+    await pg.waitForSelector('#tabs:not([hidden])');
+    return pg;
+  }
+  async function submitAs(uid, dept, items) {
+    await asUser(uid, `select public.submit_request((select id from public.departments where name = $1), null, array['圖面'],
+      $2, '設計參考', null, array['2D PDF'], null, null, null)`, [dept, items]);
+  }
+  await submitAs(U.app, '品管課', 'RV-0001/示範待核准');
+  await submitAs(U.app, '品管課', 'RV-0002/示範待駁回');
+
+  // 一般申請人看不到「待我簽核」，通知連結 ?tab=review 會退回新增申請
+  let pg = await openAs(U.app, PAGE + '?tab=review');
+  ok(await pg.locator('a[data-tab=review]').isHidden() && await pg.locator('#view-new').isVisible(), 'applicant: no review tab, ?tab=review falls back');
+  await pg.context().close();
+
+  // 部門主管：看到 2 筆，核准一筆、駁回一筆
+  pg = await openAs(U.mgr, PAGE + '?tab=review');
+  await pg.waitForSelector('#view-review:not([hidden]) .review-item');
+  ok(await pg.locator('#view-review').isVisible(), 'manager: ?tab=review opens review tab');
+  ok(await pg.textContent('#review-count') === '2' && await pg.locator('.review-item').count() === 2, 'manager sees 2 pending with count badge');
+  ok(!(await pg.locator('#view-review').textContent()).includes('RV-OTHER'), 'only own department requests');
+  if (process.env.SHOT_DIR) await pg.screenshot({ path: process.env.SHOT_DIR + '/s7-review.png', fullPage: true });
+  const n0 = notifyCalls;
+  const itA = pg.locator('.review-item', { hasText: 'RV-0001' });
+  await itA.locator('button.approve').click();
+  await pg.waitForSelector('#review-message.success');
+  await pg.waitForFunction(() => document.querySelectorAll('.review-item').length === 1);
+  ok((await pool.query(`select status, stage1_by from public.requests where items like 'RV-0001%'`)).rows[0].status === '核發主管簽核中', 'approve stage1 updates DB');
+  ok(notifyCalls > n0, 'approve triggers LINE notify');
+  const itB = pg.locator('.review-item', { hasText: 'RV-0002' });
+  await itB.locator('button.reject').click();
+  await itB.locator('button.confirm-reject').click();
+  ok((await itB.locator('.field-error').textContent()).includes('駁回原因'), 'reject requires reason (client)');
+  await itB.locator('textarea').fill('用途說明不足（測試）');
+  await itB.locator('button.confirm-reject').click();
+  await pg.waitForFunction(() => document.querySelectorAll('.review-item').length === 0);
+  const rb = (await pool.query(`select status, stage1_reason from public.requests where items like 'RV-0002%'`)).rows[0];
+  ok(rb.status === '已駁回' && rb.stage1_reason === '用途說明不足（測試）', 'reject stores reason');
+  ok((await pg.textContent('#review-message')).includes('已駁回') && await pg.locator('#review-count').isHidden(), 'reject message, badge cleared');
+  const nq = (await pool.query(`select count(*)::int n from public.notifications n join public.requests r on r.id=n.request_id where r.items like 'RV-0002%' and n.kind='已駁回'`)).rows[0].n;
+  ok(nq === 1, 'reject queued notification for applicant');
+  await pg.context().close();
+
+  // 申請人：駁回原因顯示在我的申請
+  pg = await openAs(U.app, PAGE + '?tab=mine');
+  await pg.waitForSelector('#view-mine:not([hidden]) .request-item');
+  const itRej = pg.locator('.request-item', { hasText: 'RV-0002' });
+  ok((await itRej.locator('.badge.status').textContent()) === '已駁回', 'applicant sees 已駁回');
+  await itRej.locator('.item-head').click();
+  await itRej.locator('.t-note.reject').waitFor();
+  ok((await itRej.locator('.t-note.reject').textContent()) === '用途說明不足（測試）', 'reject reason shown in red');
+  await pg.context().close();
+
+  // 核發主管：看到第一關已核准的那筆，核准後待文管發放
+  pg = await openAs(ISS, PAGE + '#review');
+  await pg.waitForSelector('#view-review:not([hidden]) .review-item');
+  const itI = pg.locator('.review-item', { hasText: 'RV-0001' });
+  ok((await itI.textContent()).includes('第二關') && (await itI.textContent()).includes('已核准（示範主管）'), 'issuer sees stage2 with stage1 approver');
+  await itI.locator('button.approve').click();
+  await pg.waitForSelector('#review-message.success');
+  ok((await pool.query(`select status from public.requests where items like 'RV-0001%'`)).rows[0].status === '待文管發放', 'issuer approve -> 待文管發放');
+  await pg.context().close();
+  await b3.close();
+  await pool.end(); server.close();
 })().catch(e => { console.error(e); process.exitCode = 1; pool.end(); server.close(); });

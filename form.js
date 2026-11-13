@@ -82,6 +82,7 @@
         return;
       }
       var docNo = res.data;
+      C.triggerNotify();
       form.reset();
       setDefaults();
       updateOthers();

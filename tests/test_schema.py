@@ -118,6 +118,24 @@ ok(val("select count(*) from profiles", U['off']) == '1', 'inactive user sees on
 ok(val("select count(*) from profiles", U['app']) == str(len(U)), 'active user sees all profiles')
 ok(val("select count(*) from departments", U['app']) == '6', 'active user lists departments')
 
+# 004：通知待發清單
+expect_err("select * from claim_notifications(10)", U['admin'], 'permission denied', 'frontend cannot claim notifications')
+expect_err("select finish_notification(1, true)", U['admin'], 'permission denied', 'frontend cannot finish notifications')
+pending = val("select count(*) from notifications where sent_at is null", role=None)
+got = val("select count(*) from claim_notifications(100)", role='service_role')
+ok(got == pending and int(got) > 0, f'service_role claims all pending ({got})')
+ok(val("select count(*) from claim_notifications(100)", role='service_role') == '0', 'claimed rows not re-claimed immediately')
+nid = val("select min(id) from notifications", role=None)
+val(f"select finish_notification({nid}, true)", role='service_role')
+ok(val(f"select sent_at is not null and error is null from notifications where id={nid}", role=None) == 't', 'finish ok marks sent')
+nid2 = val("select max(id) from notifications", role=None)
+val(f"select finish_notification({nid2}, false, 'LINE 400')", role='service_role')
+val(f"update notifications set last_attempt_at = now() - interval '2 minutes' where id={nid2}", role=None)
+ok(val(f"select count(*) from claim_notifications(100) where id={nid2}", role='service_role') == '1', 'failed notification retried after 1 minute')
+val(f"update notifications set attempts = 3, last_attempt_at = now() - interval '2 minutes' where id={nid2}", role=None)
+ok(val(f"select count(*) from claim_notifications(100) where id={nid2}", role='service_role') == '0', 'gives up after 3 attempts')
+ok(val(f"select count(*) from claim_notifications(100) c join notifications n on n.id=c.id where n.sent_at is not null", role='service_role') == '0', 'sent notifications never re-claimed')
+
 # stats
 expect_err("select request_stats()", U['app'], '沒有權限', 'applicant cannot see stats')
 st = val("select request_stats()->>'total'||','||(request_stats()->>'issued')", U['admin'])

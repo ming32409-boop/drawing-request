@@ -2,3 +2,7 @@
 [functions.line-login]
 # 呼叫時使用者還沒登入，所以不能要求 JWT
 verify_jwt = false
+
+[functions.line-notify]
+# 網頁在送出、簽核後呼叫；呼叫內容不含資料，只是「請檢查待發通知」
+verify_jwt = false

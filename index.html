@@ -5,7 +5,11 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#06c755">
   <title>圖面資料申請</title>
-  <link rel="stylesheet" href="style.css?v=7">
+  <meta name="description" content="開發部圖面資料申請與簽核：線上申請、主管簽核、文管發放。">
+  <meta property="og:title" content="圖面資料申請">
+  <meta property="og:description" content="開發部圖面資料申請與簽核：點開後用 LINE 登入即可申請、簽核或查看進度。">
+  <meta property="og:type" content="website">
+  <link rel="stylesheet" href="style.css?v=8">
 </head>
 <body>
   <header class="site-header">
@@ -17,6 +21,7 @@
     <a href="#new" data-tab="new">新增申請</a>
     <a href="#mine" data-tab="mine">我的申請</a>
     <a href="#review" data-tab="review" hidden>待我簽核 <span id="review-count" class="count" hidden></span></a>
+    <a href="#issue" data-tab="issue" hidden>文管發放 <span id="issue-count" class="count" hidden></span></a>
   </nav>
 
   <main>
@@ -130,16 +135,27 @@
       <div id="review-message" class="message" role="status" aria-live="polite" hidden></div>
       <ul id="review-list" class="request-list"></ul>
     </section>
+
+    <!-- 文管發放 -->
+    <section id="view-issue" class="card" hidden>
+      <div class="list-header">
+        <h2>文管發放</h2>
+        <button type="button" id="issue-refresh" class="secondary small">重新整理</button>
+      </div>
+      <div id="issue-message" class="message" role="status" aria-live="polite" hidden></div>
+      <ul id="issue-list" class="request-list"></ul>
+    </section>
   </main>
 
   <script src="https://static.line-scdn.net/liff/edge/2/sdk.js" charset="utf-8"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
-  <script src="config.js?v=7"></script>
-  <script src="auth.js?v=7"></script>
-  <script src="common.js?v=7"></script>
-  <script src="form.js?v=7"></script>
-  <script src="mine.js?v=7"></script>
-  <script src="review.js?v=7"></script>
-  <script src="app.js?v=7"></script>
+  <script src="config.js?v=8"></script>
+  <script src="auth.js?v=8"></script>
+  <script src="common.js?v=8"></script>
+  <script src="form.js?v=8"></script>
+  <script src="mine.js?v=8"></script>
+  <script src="review.js?v=8"></script>
+  <script src="issue.js?v=8"></script>
+  <script src="app.js?v=8"></script>
 </body>
 </html>

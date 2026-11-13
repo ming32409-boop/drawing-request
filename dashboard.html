@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="zh-Hant-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#06c755">
+  <title>管理看板｜圖面資料申請</title>
+  <meta name="description" content="開發部圖面資料申請的管理看板：申請趨勢、處理速度、外部用途、常用品號、駁回分析。">
+  <meta property="og:title" content="管理看板｜圖面資料申請">
+  <meta property="og:description" content="申請趨勢、處理速度、外部用途、常用品號、駁回分析。需以 LINE 登入，限核發主管、文管與系統管理員。">
+  <link rel="stylesheet" href="dashboard.css?v=9">
+</head>
+<body>
+  <div class="viz-root">
+    <header class="dash-header">
+      <div>
+        <h1>管理看板</h1>
+        <p class="sub">開發部圖面資料申請</p>
+      </div>
+      <div class="header-right">
+        <span id="who" class="who"></span>
+        <a href="./" class="back">回申請頁</a>
+      </div>
+    </header>
+
+    <main>
+      <div id="status" class="message info" role="status" aria-live="polite">登入中…</div>
+
+      <div id="dash" hidden>
+        <!-- 篩選（一排，套用到下方所有圖表） -->
+        <form id="filters" class="filters">
+          <label>期間
+            <select id="preset">
+              <option value="month">本月</option>
+              <option value="3m">近 3 個月</option>
+              <option value="12m" selected>近 12 個月</option>
+              <option value="year">今年</option>
+              <option value="all">全部</option>
+              <option value="custom">自訂</option>
+            </select>
+          </label>
+          <label>起 <input type="date" id="from"></label>
+          <label>迄 <input type="date" id="to"></label>
+          <button type="submit" class="secondary">套用</button>
+          <button type="button" id="export-btn" class="primary">匯出 Excel</button>
+        </form>
+        <div id="dash-message" class="message" role="status" aria-live="polite" hidden></div>
+
+        <!-- 重點數字 -->
+        <section class="tiles" id="tiles" aria-label="重點數字"></section>
+
+        <div class="grid">
+          <section class="panel wide" aria-labelledby="t-monthly">
+            <h2 id="t-monthly">① 每月申請趨勢</h2>
+            <p class="note">每月申請件數；滑過長條可看狀態分布。</p>
+            <div id="monthly" class="colchart"></div>
+            <details class="table-view"><summary>表格檢視</summary><div id="monthly-table"></div></details>
+          </section>
+
+          <section class="panel" aria-labelledby="t-speed">
+            <h2 id="t-speed">② 處理速度</h2>
+            <p class="note">各關平均處理時間（已完成的案件）；括號內為中位數。</p>
+            <div id="speed" class="hbars"></div>
+            <h3>目前等待中</h3>
+            <div id="pending"></div>
+          </section>
+
+          <section class="panel" aria-labelledby="t-reject">
+            <h2 id="t-reject">⑤ 駁回分析</h2>
+            <div id="reject-summary" class="mini-stats"></div>
+            <h3>常見駁回原因</h3>
+            <div id="reject-reasons" class="hbars"></div>
+          </section>
+
+          <section class="panel" aria-labelledby="t-external">
+            <h2 id="t-external">③ 申請用途與外部用途</h2>
+            <p class="note">⚠ 為外部用途（提供給客戶、廠商詢價或發包）。</p>
+            <div id="purpose" class="hbars"></div>
+            <h3>常見外發對象</h3>
+            <p class="note">依「預計外發對象／備註說明」的內容統計。</p>
+            <div id="external-targets" class="hbars"></div>
+          </section>
+
+          <section class="panel" aria-labelledby="t-items">
+            <h2 id="t-items">④ 最常被調閱的品號</h2>
+            <p class="note">每行「品號/名稱」取斜線前的品號，大小寫視為相同。</p>
+            <div id="top-items"></div>
+          </section>
+
+          <section class="panel" aria-labelledby="t-dept">
+            <h2 id="t-dept">各部門申請件數</h2>
+            <div id="by-department" class="hbars"></div>
+          </section>
+
+          <section class="panel" aria-labelledby="t-type">
+            <h2 id="t-type">各資料別申請件數</h2>
+            <p class="note">一張申請可勾選多種資料別。</p>
+            <div id="by-data-type" class="hbars"></div>
+          </section>
+        </div>
+      </div>
+    </main>
+    <div id="tooltip" class="tooltip" role="tooltip" hidden></div>
+  </div>
+
+  <script src="https://static.line-scdn.net/liff/edge/2/sdk.js" charset="utf-8"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+  <script src="config.js?v=9"></script>
+  <script src="auth.js?v=9"></script>
+  <script src="common.js?v=9"></script>
+  <script src="dashboard.js?v=9"></script>
+</body>
+</html>

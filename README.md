@@ -28,6 +28,7 @@ Supabase secret key、LINE Channel secret、Channel access token **不可以**�
 2. `supabase/002_require_active.sql`
 3. `supabase/003_grant_service_role.sql`（開放權限給後端；本專案設定為新資料表不自動開放，連後端也包含在內）
 4. `supabase/004_notification_outbox.sql`（LINE 通知待發清單的領取與回報函式）
+5. `supabase/005_dashboard.sql`（管理看板的統計與匯出函式）
 
 ### 資料庫重點
 - 未登入的訪客沒有任何權限。
@@ -45,6 +46,13 @@ Supabase secret key、LINE Channel secret、Channel access token **不可以**�
 - 部署時要關閉 **Verify JWT**（`supabase/config.toml` 已設定）。
 - 只使用 Supabase 自動提供的環境變數，不需要另外設定任何金鑰。
 - LIFF 的 Endpoint URL：`https://ming32409-boop.github.io/drawing-request/`
+
+## 管理看板（`dashboard.html`）
+- 網址：https://ming32409-boop.github.io/drawing-request/dashboard.html （申請頁右上角也有「管理看板」連結）
+- 限核發主管、文管、系統管理員；同樣用 LINE 登入，電腦瀏覽器也可以開。
+- 內容：重點數字、①每月申請趨勢、②各關處理速度與目前等待中、③申請用途與外部用途（含常見外發對象）、④最常被調閱的品號、⑤駁回率與常見原因、各部門與各資料別件數。
+- 期間可選本月、近 3 個月、近 12 個月、今年、全部或自訂；「匯出 Excel」下載 CSV（含 BOM，Excel 直接開啟中文不亂碼；開頭是 = + - @ 的內容會加上 ' 避免被當成公式）。
+- 資料來自資料庫函式 `dashboard_data`、`export_requests`，函式內檢查角色。
 
 ## LINE 通知（Edge Function `line-notify`）
 - 資料庫函式在送出、簽核、發放時把通知寫入 `notifications`；網頁動作完成後呼叫 `line-notify`，由它推播給對象並標記已發送。

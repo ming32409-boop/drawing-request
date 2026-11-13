@@ -3,7 +3,7 @@
 需求見 [需求筆記.txt](需求筆記.txt)，專案規則見 [AGENTS.md](AGENTS.md)。
 
 ## 架構
-- 網頁：GitHub Pages（`main` 分支根目錄），在 LINE 裡用 LIFF 開啟。目前是登入測試頁。
+- 網頁：GitHub Pages（`main` 分支根目錄），在 LINE 裡用 LIFF 開啟。目前有「新增申請」「我的申請」。
   - 網址：https://ming32409-boop.github.io/drawing-request/
   - LINE 裡開啟：https://liff.line.me/2012594772-22NJxRHt
 - 登入：LINE Login
@@ -72,5 +72,13 @@ Edge Function 測試（需要 Deno）：
 ```bash
 LINE_LOGIN_TEST=1 deno test --allow-env --allow-net=127.0.0.1 supabase/functions/line-login/
 ```
+
+網頁端對端測試（需要 Node.js；第一次先在 `tests/` 執行 `npm install` 和 `npx playwright install chromium`）：
+
+```bash
+tests/run_web_tests.sh
+```
+
+網頁測試用真的資料庫函式與權限，只有 LINE 登入用假資料代替。
 
 資料庫測試預設連 `localhost:5432`、使用者 `postgres`，可用 `PGHOST`、`PGPORT`、`PGUSER` 調整。測試會建立暫時資料庫，結束後自動刪除。

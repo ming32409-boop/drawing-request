@@ -1,0 +1,10 @@
+{
+  "name": "drawing-request-tests",
+  "private": true,
+  "description": "網頁端對端測試用的套件",
+  "dependencies": {
+    "@supabase/supabase-js": "^2",
+    "pg": "^8",
+    "playwright": "^1"
+  }
+}

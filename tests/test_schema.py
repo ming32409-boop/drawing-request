@@ -34,6 +34,11 @@ BUY = val("select id from departments where name='採購課'", role=None)
 def submit(uid, dept, purpose="'設計參考'", formats="array['2D PDF']", extra_other="null", fmt_other="null", dept_other="null", need="null", types="array['圖面']"):
     return f"select submit_request({dept}::smallint, {dept_other}, {types}, 'AB-CD-123456-1/示範固定座', {purpose}, {extra_other}, {formats}, {fmt_other}, {need}, null)"
 
+# 後端（service_role）能讀寫 Edge Function 需要的資料表
+ok(val("select count(*) from profiles where line_user_id like 'U%'", role='service_role') == str(len(U)), 'service_role can read profiles')
+ok(val(f"update profiles set display_name='示範app' where id='{U['app']}' returning 1", role='service_role') == '1', 'service_role can update profiles')
+ok(val("select count(*) >= 0 from notifications", role='service_role') == 't', 'service_role can read notifications')
+
 # anon has nothing
 expect_err("select * from requests", None, 'permission denied', 'anon cannot read requests', role='anon')
 expect_err(submit(U['app'], QC), None, 'permission denied', 'anon cannot call submit_request', role='anon')

@@ -26,6 +26,7 @@ Supabase secret key、LINE Channel secret、Channel access token **不可以**�
 在 Supabase Dashboard → **SQL Editor** 依序執行，每個檔案只執行一次：
 1. `supabase/schema.sql`
 2. `supabase/002_require_active.sql`
+3. `supabase/003_grant_service_role.sql`（開放權限給後端；本專案設定為新資料表不自動開放，連後端也包含在內）
 
 ### 資料庫重點
 - 未登入的訪客沒有任何權限。

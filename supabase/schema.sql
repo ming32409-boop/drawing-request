@@ -567,6 +567,12 @@ grant update (is_admin, is_issuer, is_dcc, active)   on public.profiles    to au
 
 -- notifications、doc_counters 不開放給前端（只有後端與函式使用）
 
+-- 後端（service_role，只在 Edge Functions 使用）需要讀寫所有資料表
+grant usage on schema public to service_role;
+grant all on all tables    in schema public to service_role;
+grant all on all sequences in schema public to service_role;
+grant execute on all functions in schema public to service_role;
+
 -- 前端可以呼叫的函式
 grant execute on function
   public.me_is_active(), public.me_is_admin(), public.me_is_issuer(), public.me_is_dcc(),

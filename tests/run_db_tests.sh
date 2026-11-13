@@ -8,5 +8,5 @@ HOST="${PGHOST:-localhost}"; PORT="${PGPORT:-5432}"; export PGUSER="${PGUSER:-po
 DB="drawing_test_$$"
 psql -h "$HOST" -p "$PORT" -d postgres -qc "create database $DB"
 trap 'psql -h "$HOST" -p "$PORT" -d postgres -qc "drop database if exists $DB"' EXIT
-psql -h "$HOST" -p "$PORT" -d "$DB" -q -v ON_ERROR_STOP=1 -f supabase_stub.sql -f ../supabase/schema.sql -f ../supabase/002_require_active.sql
+psql -h "$HOST" -p "$PORT" -d "$DB" -q -v ON_ERROR_STOP=1 -f supabase_stub.sql -f ../supabase/schema.sql -f ../supabase/002_require_active.sql -f ../supabase/003_grant_service_role.sql
 python3 test_schema.py "$HOST" "$PORT" "$DB"

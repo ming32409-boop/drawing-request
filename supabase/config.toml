@@ -1,0 +1,4 @@
+# Supabase CLI 設定（用 CLI 部署時才需要；用 Dashboard 編輯器部署時請手動關閉 Verify JWT）
+[functions.line-login]
+# 呼叫時使用者還沒登入，所以不能要求 JWT
+verify_jwt = false

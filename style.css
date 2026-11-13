@@ -126,6 +126,11 @@ button.danger { background: #fff; color: var(--error); border: 1px solid var(--e
 .review-actions { display: grid; grid-template-columns: 1fr 2fr; gap: 8px; margin-top: 12px; }
 .review-actions button { margin: 0; width: 100%; }
 .reject-box { margin-top: 12px; }
+.issue-form { margin-top: 12px; }
+.issue-form .deliver { margin-top: 8px; }
+/* 分頁多時縮小字級，手機一排放得下 */
+.tabs a { font-size: 0.95rem; white-space: nowrap; }
+@media (max-width: 380px) { .tabs a { font-size: 0.85rem; padding: 12px 2px; } }
 .reject-box textarea { margin-top: 4px; }
 .reject-box .confirm-reject { width: 100%; }
 @media (max-width: 340px) { .choices { grid-template-columns: 1fr; } }

@@ -3,7 +3,7 @@
 需求見 [需求筆記.txt](需求筆記.txt)，專案規則見 [AGENTS.md](AGENTS.md)。
 
 ## 架構
-- 網頁：GitHub Pages（`main` 分支根目錄），在 LINE 裡用 LIFF 開啟。目前有「新增申請」「我的申請」「待我簽核」。
+- 網頁：GitHub Pages（`main` 分支根目錄），在 LINE 裡用 LIFF 開啟。目前有「新增申請」「我的申請」「待我簽核」「文管發放」。
   - 網址：https://ming32409-boop.github.io/drawing-request/
   - LINE 裡開啟：https://liff.line.me/2012594772-22NJxRHt
 - 登入：LINE Login

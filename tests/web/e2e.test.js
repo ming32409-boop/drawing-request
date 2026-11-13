@@ -45,6 +45,8 @@ const rpcArgs = {
     p_formats => array(select jsonb_array_elements_text($1::jsonb->'p_formats')), p_format_other => $1::jsonb->>'p_format_other',
     p_need_date => ($1::jsonb->>'p_need_date')::date, p_external_note => $1::jsonb->>'p_external_note'`,
   withdraw_request: `p_request_id => ($1::jsonb->>'p_request_id')::uuid`,
+  deliver_request: `p_request_id => ($1::jsonb->>'p_request_id')::uuid, p_method => $1::jsonb->>'p_method',
+    p_method_other => $1::jsonb->>'p_method_other'`,
   review_request: `p_request_id => ($1::jsonb->>'p_request_id')::uuid, p_approve => ($1::jsonb->>'p_approve')::boolean,
     p_reason => $1::jsonb->>'p_reason'`,
 };
@@ -70,12 +72,13 @@ async function api(route) {
     if (u.pathname === '/rest/v1/requests' && p.get('status')) {
       // 待我簽核：status=eq.X，可能有 department_id=in.(1,2)
       const ids = p.get('department_id') ? p.get('department_id').replace(/^in\.\(|\)$/g, '').split(',').map(Number) : null;
-      return reply(await asUser(uid, `select ${REQ_COLS}, r.department_id, r.stage1_at,
+      return reply(await asUser(uid, `select ${REQ_COLS}, r.department_id, r.stage1_at, r.stage2_at,
+          case when s2.id is null then null else json_build_object('display_name', s2.display_name) end as stage2_by_profile,
           json_build_object('display_name', ap.display_name) as applicant,
           case when s1.id is null then null else json_build_object('display_name', s1.display_name) end as stage1_by_profile,
           case when d.id is null then null else json_build_object('name', d.name) end as department
         from public.requests r left join public.departments d on d.id = r.department_id
-        left join public.profiles ap on ap.id = r.applicant_id left join public.profiles s1 on s1.id = r.stage1_by
+        left join public.profiles ap on ap.id = r.applicant_id left join public.profiles s1 on s1.id = r.stage1_by left join public.profiles s2 on s2.id = r.stage2_by
         where r.status = $1 and ($2::smallint[] is null or r.department_id = any($2)) order by r.created_at limit 100`,
         [p.get('status').slice(3), ids]));
     }
@@ -297,6 +300,64 @@ async function api(route) {
   await itI.locator('button.approve').click();
   await pg.waitForSelector('#review-message.success');
   ok((await pool.query(`select status from public.requests where items like 'RV-0001%'`)).rows[0].status === '待文管發放', 'issuer approve -> 待文管發放');
+  await pg.context().close();
+
+  // ===== 第 8 步：文管發放 =====
+  const DCC = 'aaaaaaaa-0000-4000-8000-000000000005', DCC2 = 'aaaaaaaa-0000-4000-8000-000000000006';
+  await pool.query(`insert into auth.users values ('${DCC}'), ('${DCC2}');
+    insert into public.profiles (id, line_user_id, display_name, active, is_dcc) values
+      ('${DCC}', 'U${'5'.repeat(32)}', '示範文管', true, true), ('${DCC2}', 'U${'6'.repeat(32)}', '示範文管二', true, true);`);
+  // 非文管看不到分頁，?tab=issue 退回新增申請
+  pg = await openAs(ISS, PAGE + '?tab=issue');
+  ok(await pg.locator('a[data-tab=issue]').isHidden() && await pg.locator('#view-new').isVisible(), 'non-dcc: no issue tab, ?tab=issue falls back');
+  await pg.context().close();
+
+  pg = await openAs(DCC, PAGE + '?tab=issue');
+  await pg.waitForSelector('#view-issue:not([hidden]) .issue-item');
+  ok(await pg.locator('#view-issue').isVisible() && await pg.textContent('#issue-count') === '1', 'dcc: ?tab=issue opens, count 1');
+  const itD = pg.locator('.issue-item', { hasText: 'RV-0001' });
+  ok((await itD.textContent()).includes('已核准（示範主管）') && (await itD.textContent()).includes('示範核發主管'), 'shows both approvers');
+  if (process.env.SHOT_DIR) await pg.screenshot({ path: process.env.SHOT_DIR + '/s8-issue.png', fullPage: true });
+  await itD.locator('button.deliver').click();
+  ok((await itD.locator('.field-error').textContent()).includes('發放方式'), 'requires delivery method');
+  await itD.locator('select.method').selectOption('其他');
+  await itD.locator('button.deliver').click();
+  ok((await itD.locator('.field-error').textContent()).includes('其他'), '其他 requires note');
+  await itD.locator('input.method-other').fill('現場交付（測試）');
+  const n1 = notifyCalls;
+  await itD.locator('button.deliver').click();
+  await pg.waitForSelector('#issue-message.success');
+  const rd = (await pool.query(`select status, delivery_method, delivery_method_other, delivered_by from public.requests where items like 'RV-0001%'`)).rows[0];
+  ok(rd.status === '已發放結案' && rd.delivery_method === '其他' && rd.delivery_method_other === '現場交付（測試）' && rd.delivered_by === DCC, 'deliver updates DB');
+  ok(notifyCalls > n1, 'deliver triggers LINE notify');
+  ok((await pool.query(`select count(*)::int n from public.notifications n join public.requests r on r.id=n.request_id where r.items like 'RV-0001%' and n.kind='已發放'`)).rows[0].n === 1, 'applicant notification queued');
+  await pg.waitForFunction(() => !document.querySelector('.issue-item'));
+  ok(await pg.locator('#issue-count').isHidden(), 'list empty, badge cleared');
+  await pg.context().close();
+
+  // 兩位文管同時開著同一張：後按的人看到錯誤
+  await submitAs(U.app, '品管課', 'RV-0003/示範同時發放');
+  const id3 = (await pool.query(`select id from public.requests where items like 'RV-0003%'`)).rows[0].id;
+  await asUser(U.mgr, 'select public.review_request($1, true)', [id3]);
+  await asUser(ISS, 'select public.review_request($1, true)', [id3]);
+  pg = await openAs(DCC2, PAGE + '#issue');
+  await pg.waitForSelector('#view-issue:not([hidden]) .issue-item');
+  await asUser(DCC, `select public.deliver_request($1, 'Email')`, [id3]);
+  const it3 = pg.locator('.issue-item', { hasText: 'RV-0003' });
+  await it3.locator('select.method').selectOption('雲端連結');
+  await it3.locator('button.deliver').click();
+  await pg.waitForSelector('#issue-message.error');
+  ok((await pg.textContent('#issue-message')).includes('不能發放'), 'second dcc gets error: ' + await pg.textContent('#issue-message'));
+  ok((await pool.query(`select delivery_method from public.requests where id=$1`, [id3])).rows[0].delivery_method === 'Email', 'first delivery kept');
+  await pg.context().close();
+
+  // 申請人在我的申請看到發放方式
+  pg = await openAs(U.app, PAGE + '?tab=mine');
+  await pg.waitForSelector('#view-mine:not([hidden]) .request-item');
+  const itM = pg.locator('.request-item', { hasText: 'RV-0001' });
+  ok((await itM.locator('.badge.status').textContent()) === '已發放結案', 'applicant sees 已發放結案');
+  await itM.locator('.item-head').click();
+  ok((await itM.locator('.detail').textContent()).includes('其他（現場交付（測試））'), 'applicant sees delivery method');
   await pg.context().close();
   await b3.close();
   await pool.end(); server.close();

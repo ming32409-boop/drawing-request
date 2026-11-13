@@ -5,32 +5,129 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#06c755">
   <title>圖面資料申請</title>
-  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="style.css?v=6">
 </head>
 <body>
   <header class="site-header">
     <h1>圖面資料申請</h1>
+    <p id="who" class="who"></p>
   </header>
+
+  <nav id="tabs" class="tabs" hidden>
+    <a href="#new" data-tab="new">新增申請</a>
+    <a href="#mine" data-tab="mine">我的申請</a>
+  </nav>
+
   <main>
-    <section class="card">
-      <h2>登入狀態</h2>
+    <!-- 登入中／錯誤／待啟用 -->
+    <section id="view-status" class="card">
       <div id="status" class="message info" role="status" aria-live="polite">登入中…</div>
-      <dl id="me" class="me" hidden>
-        <dt>姓名</dt><dd id="me-name"></dd>
-        <dt>帳號狀態</dt><dd id="me-active"></dd>
-        <dt>角色</dt><dd id="me-roles"></dd>
-        <dt>管理的部門</dt><dd id="me-depts"></dd>
-      </dl>
       <p id="pending-hint" class="hint" hidden>
         帳號已建立，請通知系統管理員為你啟用帳號。啟用後重新開啟本頁即可使用。
       </p>
       <button type="button" id="retry-btn" class="secondary" hidden>重新登入</button>
     </section>
+
+    <!-- 新增申請 -->
+    <section id="view-new" class="card" hidden>
+      <h2>新增申請</h2>
+      <form id="request-form" novalidate>
+        <div class="field">
+          <label for="department">所屬部門 <span class="req">*</span></label>
+          <select id="department" name="department" required>
+            <option value="">請選擇</option>
+          </select>
+          <input id="department_other" name="department_other" type="text" maxlength="100"
+                 placeholder="請填寫部門名稱" class="other" hidden>
+          <p class="field-error" data-for="department"></p>
+        </div>
+
+        <fieldset class="field">
+          <legend>申請資料別 <span class="req">*</span><span class="sub">（可複選）</span></legend>
+          <div class="choices" id="data_types">
+            <label><input type="checkbox" name="data_types" value="圖面">圖面</label>
+            <label><input type="checkbox" name="data_types" value="材質證明">材質證明</label>
+            <label><input type="checkbox" name="data_types" value="測試報告">測試報告</label>
+            <label><input type="checkbox" name="data_types" value="樣品">樣品</label>
+          </div>
+          <p class="field-error" data-for="data_types"></p>
+        </fieldset>
+
+        <div class="field">
+          <label for="items">品號／零件名稱／規格 <span class="req">*</span></label>
+          <textarea id="items" name="items" rows="4" maxlength="3000" required
+                    placeholder="一行一筆，例如：&#10;AB-CD-123456-1/示範固定座φ20x40mm"></textarea>
+          <p class="hint-text">一行一筆，格式：品號/零件名稱與規格。版次請寫在名稱裡（例如 Rev.C）。</p>
+          <p class="field-error" data-for="items"></p>
+        </div>
+
+        <div class="field">
+          <label for="purpose">申請用途 <span class="req">*</span></label>
+          <select id="purpose" name="purpose" required>
+            <option value="">請選擇</option>
+            <option>提供給客戶</option>
+            <option>廠商詢價或發包</option>
+            <option>現場組裝或試作</option>
+            <option>品管進料或出貨檢驗</option>
+            <option>設計參考</option>
+            <option>其他</option>
+          </select>
+          <input id="purpose_other" name="purpose_other" type="text" maxlength="100"
+                 placeholder="請說明用途" class="other" hidden>
+          <p id="external-note" class="external" hidden>⚠ 外部用途：資料將提供給公司以外的對象，會特別標記。</p>
+          <p class="field-error" data-for="purpose"></p>
+        </div>
+
+        <fieldset class="field">
+          <legend>需求格式 <span class="req">*</span><span class="sub">（可複選）</span></legend>
+          <div class="choices" id="formats">
+            <label><input type="checkbox" name="formats" value="2D PDF">2D PDF</label>
+            <label><input type="checkbox" name="formats" value="2D DWG或DXF">2D DWG或DXF</label>
+            <label><input type="checkbox" name="formats" value="3D STEP或STP">3D STEP或STP</label>
+            <label><input type="checkbox" name="formats" value="3D 原始檔">3D 原始檔</label>
+            <label><input type="checkbox" name="formats" value="紙本或實體">紙本或實體</label>
+            <label><input type="checkbox" name="formats" value="其他">其他</label>
+          </div>
+          <input id="format_other" name="format_other" type="text" maxlength="100"
+                 placeholder="請說明格式" class="other" hidden>
+          <p class="field-error" data-for="formats"></p>
+        </fieldset>
+
+        <div class="field">
+          <label for="need_date">需要日期 <span class="sub">（選填）</span></label>
+          <input id="need_date" name="need_date" type="date">
+          <p class="field-error" data-for="need_date"></p>
+        </div>
+
+        <div class="field">
+          <label for="external_note">預計外發對象／備註說明 <span class="sub">（選填）</span></label>
+          <textarea id="external_note" name="external_note" rows="3" maxlength="1000"
+                    placeholder="例如：示範協力廠（虛構）報價用"></textarea>
+        </div>
+
+        <button type="submit" id="submit-btn" class="primary">送出申請</button>
+        <div id="form-message" class="message" role="status" aria-live="polite" hidden></div>
+      </form>
+    </section>
+
+    <!-- 我的申請 -->
+    <section id="view-mine" class="card" hidden>
+      <div class="list-header">
+        <h2>我的申請</h2>
+        <button type="button" id="mine-refresh" class="secondary small">重新整理</button>
+      </div>
+      <div id="mine-message" class="message" role="status" aria-live="polite" hidden></div>
+      <ul id="mine-list" class="request-list"></ul>
+    </section>
   </main>
+
   <script src="https://static.line-scdn.net/liff/edge/2/sdk.js" charset="utf-8"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
-  <script src="config.js"></script>
-  <script src="auth.js"></script>
-  <script src="app.js"></script>
+  <script src="config.js?v=6"></script>
+  <script src="auth.js?v=6"></script>
+  <script src="common.js?v=6"></script>
+  <script src="form.js?v=6"></script>
+  <script src="mine.js?v=6"></script>
+  <script src="app.js?v=6"></script>
 </body>
 </html>

@@ -70,6 +70,13 @@ set active = true, is_admin = true, is_issuer = true
 where display_name = '你的 LINE 名稱';
 ```
 
+## 介面設計
+- `theme.css`：兩個頁面共用的配色、字型、按鈕、輸入框、卡片樣式，支援深色模式（跟隨系統設定）。`style.css` 是申請頁版面，`dashboard.css` 是看板版面。
+- 風格：銀灰底、白色「雙層邊框」卡片、墨色膠囊按鈕；顏色只用來表示狀態（簽核中、已發放、已駁回、外部用途）和圖表資料。
+- 英數字使用 Geist 字型（`fonts/geist-latin.woff2`，SIL Open Font License，授權見 `fonts/LICENSE-Geist.txt`）；中文使用裝置的系統字型。
+- 動畫只使用 `transform` 與 `opacity`；使用者設定「減少動態效果」時會自動關閉。
+- 修改樣式或程式後，請把 `index.html`、`dashboard.html` 裡的 `?v=數字` 加 1，手機上的 LINE 才會讀到新版。
+
 ## 本機預覽
 ```bash
 python3 -m http.server 8000

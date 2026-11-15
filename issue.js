@@ -124,7 +124,7 @@
   async function load() {
     if (!canIssue()) return;
     refreshBtn.disabled = true;
-    if (!listEl.children.length) C.showMessage(msgEl, "info", "載入中…");
+    if (!listEl.children.length) C.showMessage(msgEl, "info loading", "載入中…");
     try {
       var res = await ctx.client.from("requests").select(FIELDS)
         .eq("status", "待文管發放")

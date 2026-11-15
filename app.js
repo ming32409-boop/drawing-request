@@ -41,7 +41,7 @@
 
   async function main() {
     showView("status");
-    C.showMessage(statusEl, "info", "登入中…");
+    C.showMessage(statusEl, "info loading", "登入中…");
     retryBtn.hidden = true;
     try {
       var session = await window.DrawingAuth.signIn();

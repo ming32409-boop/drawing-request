@@ -7,7 +7,9 @@
   var statusEl = document.getElementById("status");
   var msgEl = document.getElementById("dash-message");
   var tip = document.getElementById("tooltip");
-  var presetSel = document.getElementById("preset");
+  var presetButtons = document.querySelectorAll("#filters [data-preset]");
+  var applyBtn = document.getElementById("apply-btn");
+  var preset = "12m";
   var fromIn = document.getElementById("from");
   var toIn = document.getElementById("to");
   var exportBtn = document.getElementById("export-btn");
@@ -66,7 +68,16 @@
   function tile(label, value, hint) {
     var t = el("div", "tile");
     t.appendChild(el("div", "label", label));
-    t.appendChild(el("div", "value", value));
+    // 數字放大、單位縮小（例如「9.8 小時」「21.7%」）
+    var v = el("div", "value");
+    var m = /^([\d.,]+)\s*([^\d.,\s].*)$/.exec(value);
+    if (m) {
+      v.appendChild(document.createTextNode(m[1]));
+      v.appendChild(el("span", "unit", m[2]));
+    } else {
+      v.textContent = value;
+    }
+    t.appendChild(v);
     if (hint) t.appendChild(el("div", "hint", hint));
     return t;
   }
@@ -222,13 +233,15 @@
 
   // ---------- 讀資料 ----------
   async function load() {
-    var range = rangeFor(presetSel.value);
+    var range = rangeFor(preset);
     fromIn.value = range[0];
     toIn.value = range[1];
     C.hideMessage(msgEl);
     var res = await client.rpc("dashboard_data", { p_from: range[0] || null, p_to: range[1] || null });
     if (res.error) { C.showMessage(msgEl, "error", "無法載入看板：" + C.describeError(res.error)); return; }
     var d = res.data;
+    document.getElementById("range-text").textContent =
+      range[0] || range[1] ? (range[0] || "最早") + " 至 " + (range[1] || "今天") + " 送出的申請" : "全部期間的申請";
     renderTiles(d);
     renderMonthly(d);
     renderSpeed(d);
@@ -260,7 +273,7 @@
   async function exportCsv() {
     exportBtn.disabled = true;
     try {
-      var range = rangeFor(presetSel.value);
+      var range = rangeFor(preset);
       var res = await client.rpc("export_requests", { p_from: range[0] || null, p_to: range[1] || null });
       if (res.error) { C.showMessage(msgEl, "error", "匯出失敗：" + C.describeError(res.error)); return; }
       var lines = [EXPORT_COLUMNS.map(function (c) { return c[1]; }).join(",")];
@@ -305,14 +318,37 @@
       C.hideMessage(statusEl);
       document.getElementById("dash").hidden = false;
       await load();
+      setupReveal();
     } catch (err) {
       console.error(err);
       C.showMessage(statusEl, "error", "登入失敗：" + C.describeError(err));
     }
   }
 
-  presetSel.addEventListener("change", function () { if (presetSel.value !== "custom") load(); });
-  [fromIn, toIn].forEach(function (i) { i.addEventListener("change", function () { presetSel.value = "custom"; }); });
+  // 期間：點快速選項立即重新整理；改日期或選「自訂」後按「套用」
+  function setPreset(p) {
+    preset = p;
+    presetButtons.forEach(function (b) { b.setAttribute("aria-pressed", String(b.dataset.preset === p)); });
+    applyBtn.hidden = p !== "custom";
+  }
+  // 捲動到畫面內時，區塊由下往上淡入（不支援時直接顯示）
+  function setupReveal() {
+    if (!("IntersectionObserver" in window)) return;
+    var io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (e) {
+        if (e.isIntersecting) { e.target.classList.add("in"); io.unobserve(e.target); }
+      });
+    }, { rootMargin: "0px 0px -8% 0px" });
+    document.querySelectorAll(".bento .panel").forEach(function (p) { p.classList.add("reveal"); io.observe(p); });
+  }
+
+  presetButtons.forEach(function (b) {
+    b.addEventListener("click", function () {
+      setPreset(b.dataset.preset);
+      if (preset === "custom") fromIn.focus(); else load();
+    });
+  });
+  [fromIn, toIn].forEach(function (i) { i.addEventListener("change", function () { setPreset("custom"); }); });
   document.getElementById("filters").addEventListener("submit", function (e) { e.preventDefault(); load(); });
   exportBtn.addEventListener("click", exportCsv);
   window.addEventListener("scroll", function () { tip.hidden = true; }, { passive: true });

@@ -64,6 +64,27 @@
     load();
   }
 
+  // 進度條：送出 → 部門主管 → 核發主管 → 文管發放
+  function progress(r) {
+    var withdrawn = r.status === "已撤回";
+    var s1 = r.stage1_result === "已核准" || r.stage1_result === "免簽" ? "done"
+      : r.stage1_result === "已駁回" ? "rejected" : withdrawn ? "todo" : "current";
+    var s2 = r.stage2_result === "已核准" ? "done"
+      : r.stage2_result === "已駁回" ? "rejected" : r.stage2_result === "待簽核" ? "current" : "todo";
+    var s3 = r.status === "已發放結案" ? "done" : r.status === "待文管發放" ? "current" : "todo";
+    var steps = [
+      ["送出", "done"],
+      [r.stage1_result === "免簽" ? "主管免簽" : "部門主管", s1],
+      ["核發主管", s2],
+      ["文管發放", s3],
+    ];
+    var words = { done: "已完成", current: "進行中", todo: "尚未開始", rejected: "已駁回" };
+    var ol = C.el("ol", "progress");
+    ol.setAttribute("aria-label", "進度：" + steps.map(function (s) { return s[0] + words[s[1]]; }).join("，"));
+    steps.forEach(function (s) { ol.appendChild(C.el("li", s[1], s[0])); });
+    return ol;
+  }
+
   function renderItem(r) {
     var li = C.el("li", "request-item");
     var head = C.el("button", "item-head");
@@ -77,7 +98,13 @@
     var firstLine = r.items.split("\n")[0];
     var more = r.items.split("\n").length - 1;
     head.appendChild(C.el("p", "item-summary", firstLine + (more > 0 ? "（另 " + more + " 筆）" : "")));
-    head.appendChild(C.el("p", "item-meta", r.data_types.join("、") + "｜" + C.formatTime(r.created_at)));
+    var metaRow = C.el("div", "item-meta-row");
+    metaRow.appendChild(C.el("p", "item-meta", r.data_types.join("、") + "・" + C.formatTime(r.created_at)));
+    var chev = C.el("span", "chev");
+    chev.setAttribute("aria-hidden", "true");
+    metaRow.appendChild(chev);
+    head.appendChild(metaRow);
+    head.appendChild(progress(r));
     li.appendChild(head);
 
     var detail = C.el("div", "item-detail");
@@ -119,7 +146,7 @@
 
   async function load() {
     refreshBtn.disabled = true;
-    if (!listEl.children.length) C.showMessage(msgEl, "info", "載入中…");
+    if (!listEl.children.length) C.showMessage(msgEl, "info loading", "載入中…");
     try {
       var res = await ctx.client.from("requests").select(REQUEST_FIELDS)
         .eq("applicant_id", ctx.profile.id)

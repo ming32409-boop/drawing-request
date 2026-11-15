@@ -98,6 +98,13 @@
 
   function setDefaults() {
     needDate.min = C.todayTaipei();
+    updateItemsCount();
+  }
+
+  // 顯示目前輸入了幾筆品號（一行一筆）
+  function updateItemsCount() {
+    var n = form.elements.items.value.split("\n").filter(function (l) { return l.trim(); }).length;
+    document.getElementById("items-count").textContent = n ? "已輸入 " + n + " 筆" : "";
   }
 
   function init(context) {
@@ -133,6 +140,7 @@
       if (name === "format_other") name = "formats";
       setError(name, "");
     });
+    form.elements.items.addEventListener("input", updateItemsCount);
     form.addEventListener("submit", onSubmit);
     updateOthers();
   }

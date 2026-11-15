@@ -128,7 +128,7 @@
   async function load() {
     if (!canReview()) return;
     refreshBtn.disabled = true;
-    if (!listEl.children.length) C.showMessage(msgEl, "info", "載入中…");
+    if (!listEl.children.length) C.showMessage(msgEl, "info loading", "載入中…");
     try {
       var queries = [];
       if (ctx.managedDepartmentIds.length) {

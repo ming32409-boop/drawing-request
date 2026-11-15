@@ -22,6 +22,9 @@ const server = http.createServer((req, res) => {
   res.writeHead(200, { 'content-type': TYPES[path.extname(file)] || 'application/octet-stream' });
   fs.createReadStream(file).pipe(res);
 }).listen(PORT);
+// 截圖時關閉動畫，畫面才不會停在動畫中途
+const RM = { reducedMotion: process.env.SHOT_DIR ? 'reduce' : 'no-preference' };
+const shot = async (pg, name) => { if (process.env.SHOT_DIR) await pg.screenshot({ path: process.env.SHOT_DIR + '/' + name + '.png', fullPage: true }); };
 const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if (!c) process.exitCode = 1; };
 const b64 = o => Buffer.from(JSON.stringify(o)).toString('base64url');
 const jwtFor = uid => b64({ alg: 'HS256', typ: 'JWT' }) + '.' + b64({ sub: uid, role: 'authenticated', aud: 'authenticated', exp: Math.floor(Date.now() / 1000) + 3600 }) + '.sig';
@@ -113,7 +116,7 @@ async function api(route) {
     update public.departments set manager_id = $2 where name in ('品管課', '開發部');`.replace(/\$1/g, `'${U.app}'`).replace(/\$2/g, `'${U.mgr}'`).replace(/\$3/g, `'${U.off}'`));
 
   const b = await chromium.launch();
-  const ctx = await b.newContext({ ...devices['iPhone 13'] });
+  const ctx = await b.newContext({ ...devices['iPhone 13'], ...RM });
   await ctx.route('https://static.line-scdn.net/**', r => r.fulfill({ contentType: 'application/javascript', body:
     `window.liff={init:async()=>{},isLoggedIn:()=>true,login:()=>{},logout:()=>{},getIDToken:()=>'fake.id.token-for-testing',getDecodedIDToken:()=>({sub:'U'+'9'.repeat(32)})};` }));
   await ctx.route('https://cdn.jsdelivr.net/**', r => r.fulfill({ body: UMD, contentType: 'application/javascript' }));
@@ -126,6 +129,7 @@ async function api(route) {
   await p.goto(PAGE);
   await p.waitForSelector('#tabs:not([hidden])');
   ok(await p.textContent('#who') === '示範申請人', 'header shows name');
+  if (process.env.SHOT_DIR) await p.screenshot({ path: process.env.SHOT_DIR + '/d-top.png' });
   ok(await p.locator('#view-new').isVisible(), 'default tab is 新增申請');
   ok((await p.$$eval('#department option', o => o.map(x => x.textContent))).join(',') === '請選擇,開發部,品管課,採購課,業務部,製造部,其他', 'department options from DB');
 
@@ -161,9 +165,11 @@ async function api(route) {
   await p.fill('#items', 'AB-CD-123456-1/示範固定座φ20x40mm\nAB-CD-123457-2/示範支架 Rev.C');
   await p.selectOption('#purpose', '提供給客戶');
   ok(await p.locator('#external-note').isVisible(), 'external purpose warning shown');
+  ok(await p.textContent('#items-count') === '已輸入 2 筆', 'items count shows 2 lines');
   const tomorrow = new Date(Date.now() + 86400000 + 8 * 3600000).toISOString().slice(0, 10);
   await p.fill('#need_date', tomorrow);
   await p.fill('#external_note', '示範客戶（虛構）');
+  await shot(p, 'd-form');
   await p.click('#submit-btn');
   await p.waitForSelector('#form-message.success');
   const msg = await p.textContent('#form-message');
@@ -192,10 +198,12 @@ async function api(route) {
   ok(await p.evaluate(() => !window.__xss) && await p.locator('.request-item img').count() === 0, 'HTML in items rendered as text');
   const second = p.locator('.request-item').nth(1);
   ok((await second.locator('.external-badge').count()) === 1 && (await second.locator('.badge.status').textContent()) === '申請主管簽核中', 'external badge + status');
+  ok((await second.locator('.progress li').evaluateAll(l => l.map(x => x.className).join(','))) === 'done,current,todo,todo', 'progress stepper: waiting for dept manager');
   await second.locator('.item-head').click();
   await second.locator('.timeline li').first().waitFor();
   ok((await second.locator('.timeline').textContent()).includes('送出'), 'events timeline shows 送出');
   { const t = await second.locator('.detail').textContent(); ok(t.includes('品管課') && t.includes(tomorrow) && !t.includes('T00:00'), 'detail shows department and need date'); }
+  await shot(p, 'd-mine');
   await second.locator('button.danger').click();
   await p.waitForSelector('#mine-message.success');
   await p.waitForFunction(d => [...document.querySelectorAll('.request-item')].some(li => li.textContent.includes(d) && li.textContent.includes('已撤回')), doc1);
@@ -207,6 +215,7 @@ async function api(route) {
   await p.click('#mine-refresh');
   await p.waitForFunction(d => [...document.querySelectorAll('.request-item')].some(li => li.textContent.includes(d) && li.textContent.includes('核發主管簽核中')), doc2);
   const it2 = p.locator('.request-item', { hasText: doc2 });
+  ok((await it2.locator('.progress li').evaluateAll(l => l.map(x => x.className).join(','))) === 'done,done,current,todo', 'progress stepper: waiting for issuer');
   await it2.locator('.item-head').click();
   await it2.locator('.timeline li').nth(1).waitFor();
   ok((await it2.locator('.timeline').textContent()).includes('第一關 核准｜示範主管'), 'timeline shows stage1 approval with name');
@@ -216,7 +225,7 @@ async function api(route) {
   await b.close();
 
   // 待啟用帳號
-  const b2 = await chromium.launch(); const c2 = await b2.newContext({ ...devices['iPhone 13'] });
+  const b2 = await chromium.launch(); const c2 = await b2.newContext({ ...devices['iPhone 13'], ...RM });
   await c2.route('https://static.line-scdn.net/**', r => r.fulfill({ contentType: 'application/javascript', body:
     `window.liff={init:async()=>{},isLoggedIn:()=>true,login:()=>{},logout:()=>{},getIDToken:()=>'fake.id.token-for-testing',getDecodedIDToken:()=>({sub:'U'+'8'.repeat(32)})};` }));
   await c2.route('https://cdn.jsdelivr.net/**', r => r.fulfill({ body: UMD, contentType: 'application/javascript' }));
@@ -233,7 +242,7 @@ async function api(route) {
     insert into public.profiles (id, line_user_id, display_name, active, is_issuer) values ('${ISS}', 'U${'4'.repeat(32)}', '示範核發主管', true, true);`);
   const b3 = await chromium.launch();
   async function openAs(uid, url) {
-    const c = await b3.newContext({ ...devices['iPhone 13'] });
+    const c = await b3.newContext({ ...devices['iPhone 13'], ...RM });
     await c.route('https://static.line-scdn.net/**', r => r.fulfill({ contentType: 'application/javascript', body:
       `window.liff={init:async()=>{},isLoggedIn:()=>true,login:()=>{},logout:()=>{},getIDToken:()=>'fake.id.token-for-testing',getDecodedIDToken:()=>({sub:'U'+'7'.repeat(32)})};` }));
     await c.route('https://cdn.jsdelivr.net/**', r => r.fulfill({ body: UMD, contentType: 'application/javascript' }));
@@ -247,7 +256,7 @@ async function api(route) {
     return pg;
   }
   async function openAsDash(uid, viewport) {
-    const opts = viewport ? { viewport, acceptDownloads: true } : { ...devices['iPhone 13'], acceptDownloads: true };
+    const opts = viewport ? { viewport, acceptDownloads: true, ...RM } : { ...devices['iPhone 13'], acceptDownloads: true, ...RM };
     const c = await b3.newContext(opts);
     await c.route('https://static.line-scdn.net/**', r => r.fulfill({ contentType: 'application/javascript', body:
       `window.liff={init:async()=>{},isLoggedIn:()=>true,login:()=>{},logout:()=>{},getIDToken:()=>'fake.id.token-for-testing',getDecodedIDToken:()=>({sub:'U'+'7'.repeat(32)})};` }));
@@ -304,6 +313,7 @@ async function api(route) {
   pg = await openAs(U.app, PAGE + '?tab=mine');
   await pg.waitForSelector('#view-mine:not([hidden]) .request-item');
   const itRej = pg.locator('.request-item', { hasText: 'RV-0002' });
+  ok((await itRej.locator('.progress li').evaluateAll(l => l.map(x => x.className).join(','))) === 'done,rejected,todo,todo', 'progress stepper: rejected at stage 1');
   ok((await itRej.locator('.badge.status').textContent()) === '已駁回', 'applicant sees 已駁回');
   await itRej.locator('.item-head').click();
   await itRej.locator('.t-note.reject').waitFor();
@@ -373,6 +383,7 @@ async function api(route) {
   pg = await openAs(U.app, PAGE + '?tab=mine');
   await pg.waitForSelector('#view-mine:not([hidden]) .request-item');
   const itM = pg.locator('.request-item', { hasText: 'RV-0001' });
+  ok((await itM.locator('.progress li').evaluateAll(l => l.map(x => x.className).join(','))) === 'done,done,done,done', 'progress stepper: all done after delivery');
   ok((await itM.locator('.badge.status').textContent()) === '已發放結案', 'applicant sees 已發放結案');
   await itM.locator('.item-head').click();
   ok((await itM.locator('.detail').textContent()).includes('其他（現場交付（測試））'), 'applicant sees delivery method');
@@ -412,12 +423,16 @@ async function api(route) {
   const total = (await pool.query(`select count(*)::int n from public.requests where (created_at at time zone 'Asia/Taipei')::date >= date_trunc('month', (now() at time zone 'Asia/Taipei') - interval '11 months')`)).rows[0].n;
   ok(await pg.locator('#tiles .tile .value').first().textContent() === String(total), 'tile total matches DB (' + total + ')');
   ok(await pg.locator('#monthly .col').count() === 12, '12 monthly columns for 近 12 個月');
+  ok(await pg.locator('#tiles .tile').first().locator('.unit').count() === 0 && (await pg.locator('#tiles .tile .unit').allTextContents()).join('|').includes('%'), 'tile units: plain counts have no unit, percentages do');
   ok(await pg.locator('#speed .hbar').count() === 3 && await pg.locator('#speed .tag').count() === 1, 'speed: 3 stages, one marked 最久');
   ok((await pg.locator('#speed .hbar', { hasText: '第二關' }).locator('.tag').count()) === 1, 'stage2 (8h) is the slowest');
   ok((await pg.textContent('#top-items')).includes('HP-9') && (await pg.textContent('#top-items')).includes('HP-0'), 'top items lists part numbers');
   ok((await pg.textContent('#external-targets')).includes('示範客戶B'), 'external targets listed');
   ok((await pg.textContent('#reject-reasons')).includes('資料不足（測試）'), 'reject reasons listed');
   ok((await pg.locator('#purpose .flag').count()) >= 1, 'external purposes flagged ⚠');
+  // 先捲到圖表再移入滑鼠（捲動會關閉提示框，這是設計上的行為）
+  await pg.locator('#monthly .col').last().scrollIntoViewIfNeeded();
+  await pg.waitForTimeout(300);
   await pg.locator('#monthly .col').last().hover();
   ok(!(await pg.locator('#tooltip').isHidden()) && (await pg.textContent('#tooltip')).includes('申請'), 'hover tooltip on month column');
   await pg.locator('#speed .hbar').first().focus();
@@ -425,12 +440,13 @@ async function api(route) {
   if (process.env.SHOT_DIR) await pg.screenshot({ path: process.env.SHOT_DIR + '/s9-desktop.png', fullPage: true });
 
   // 篩選：本月
-  await pg.selectOption('#preset', 'month');
+  await pg.click('#filters [data-preset=month]');
   await pg.waitForFunction(() => document.querySelectorAll('#monthly .col').length === 1);
   ok(await pg.inputValue('#from') !== '' && await pg.locator('#monthly .col').count() === 1, 'preset 本月 refilters');
+  ok(await pg.getAttribute('#filters [data-preset=month]', 'aria-pressed') === 'true' && await pg.locator('#apply-btn').isHidden(), 'preset button shows as selected');
 
   // 匯出
-  await pg.selectOption('#preset', 'all');
+  await pg.click('#filters [data-preset=all]');
   await pg.waitForFunction(() => document.querySelectorAll('#monthly .col').length > 1);
   const [dl] = await Promise.all([pg.waitForEvent('download'), pg.click('#export-btn')]);
   const csv = fs.readFileSync(await dl.path(), 'utf8');
@@ -448,6 +464,25 @@ async function api(route) {
   ok(!overflow, 'dashboard: no horizontal scroll on phone');
   await pg.context().close();
 
+  if (process.env.SHOT_DIR) {   // 深色模式截圖
+    const darkPage = async (uid, url, sel) => {
+      const cd = await b3.newContext({ ...devices['iPhone 13'], ...RM, colorScheme: 'dark' });
+      await cd.route('https://static.line-scdn.net/**', r => r.fulfill({ contentType: 'application/javascript', body:
+        `window.liff={init:async()=>{},isLoggedIn:()=>true,login:()=>{},logout:()=>{},getIDToken:()=>'fake.id.token-for-testing',getDecodedIDToken:()=>({sub:'U'+'7'.repeat(32)})};` }));
+      await cd.route('https://cdn.jsdelivr.net/**', r => r.fulfill({ body: UMD, contentType: 'application/javascript' }));
+      await cd.route(SB + '/**', api);
+      global.CURRENT = uid;
+      const pd = await cd.newPage();
+      await pd.goto(url); await pd.waitForSelector(sel);
+      return pd;
+    };
+    let pd = await darkPage(ISS, PAGE + 'dashboard.html', '#tiles .tile');
+    await pd.screenshot({ path: process.env.SHOT_DIR + '/dark-dash.png' }); await pd.context().close();
+    pd = await darkPage(U.app, PAGE + '?tab=mine', '#mine-list .request-item');
+    await pd.screenshot({ path: process.env.SHOT_DIR + '/dark-mine.png' }); await pd.context().close();
+    pd = await darkPage(U.app, PAGE, '#view-new:not([hidden])');
+    await pd.screenshot({ path: process.env.SHOT_DIR + '/dark-form.png' }); await pd.context().close();
+  }
   // 申請頁：有權限的人看到「管理看板」連結
   pg = await openAs(ISS, PAGE);
   ok(await pg.locator('#dash-link').isVisible(), 'issuer sees 管理看板 link');

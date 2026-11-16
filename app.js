@@ -69,7 +69,14 @@
 
       var ctx = { client: client, profile: me.data, departments: depts.data, managedDepartmentIds: managed };
       window.RequestForm.init(ctx);
-      window.MyRequests.init(ctx);
+      window.MyRequests.init(Object.assign({}, ctx, {
+        // 複製內容重新申請：切到「新增申請」並帶入內容
+        onCopy: function (r) {
+          location.hash = "#new";
+          showView("new");
+          window.RequestForm.prefill(r);
+        },
+      }));
       window.ReviewQueue.init(ctx);
       window.IssueQueue.init(ctx);
 

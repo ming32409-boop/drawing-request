@@ -29,6 +29,7 @@ Supabase secret key、LINE Channel secret、Channel access token **不可以**�
 3. `supabase/003_grant_service_role.sql`（開放權限給後端；本專案設定為新資料表不自動開放，連後端也包含在內）
 4. `supabase/004_notification_outbox.sql`（LINE 通知待發清單的領取與回報函式）
 5. `supabase/005_dashboard.sql`（管理看板的統計與匯出函式）
+6. `supabase/006_item_format.sql`（品號每一行必須是「品號/名稱」的格式檢查）
 
 ### 資料庫重點
 - 未登入的訪客沒有任何權限。

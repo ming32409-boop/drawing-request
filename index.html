@@ -11,8 +11,8 @@
   <meta property="og:description" content="開發部圖面資料申請與簽核：點開後用 LINE 登入即可申請、簽核或查看進度。">
   <meta property="og:type" content="website">
   <link rel="icon" type="image/svg+xml" href="icon.svg">
-  <link rel="stylesheet" href="theme.css?v=10">
-  <link rel="stylesheet" href="style.css?v=10">
+  <link rel="stylesheet" href="theme.css?v=11">
+  <link rel="stylesheet" href="style.css?v=11">
 </head>
 <body>
   <header class="app-bar">
@@ -65,6 +65,7 @@
         <p class="lead">填寫後送出，系統會用 LINE 通知主管簽核，進度可在「我的申請」查看。</p>
       </div>
       <form id="request-form" class="card" novalidate>
+        <div id="prefill-note" class="message info prefill-note" role="status" hidden></div>
         <div class="form-section">
           <h3 class="section-title"><span class="step-no">1</span>申請內容</h3>
 
@@ -94,10 +95,11 @@
             <textarea id="items" name="items" rows="4" maxlength="3000" required
                       placeholder="一行一筆，例如：&#10;AB-CD-123456-1/示範固定座φ20x40mm"></textarea>
             <div class="hint-row">
-              <p class="hint-text">一行一筆，格式：品號/零件名稱與規格。版次請寫在名稱裡（例如 Rev.C）。</p>
+              <p class="hint-text">一行一筆，格式：品號/零件名稱與規格（中間要有斜線）。版次請寫在名稱裡，例如 Rev.C。</p>
               <span id="items-count" class="items-count" aria-live="polite"></span>
             </div>
             <p class="field-error" data-for="items"></p>
+            <p class="field-warn" id="items-warn" aria-live="polite"></p>
           </div>
         </div>
 
@@ -196,13 +198,13 @@
 
   <script src="https://static.line-scdn.net/liff/edge/2/sdk.js" charset="utf-8"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
-  <script src="config.js?v=10"></script>
-  <script src="auth.js?v=10"></script>
-  <script src="common.js?v=10"></script>
-  <script src="form.js?v=10"></script>
-  <script src="mine.js?v=10"></script>
-  <script src="review.js?v=10"></script>
-  <script src="issue.js?v=10"></script>
-  <script src="app.js?v=10"></script>
+  <script src="config.js?v=11"></script>
+  <script src="auth.js?v=11"></script>
+  <script src="common.js?v=11"></script>
+  <script src="form.js?v=11"></script>
+  <script src="mine.js?v=11"></script>
+  <script src="review.js?v=11"></script>
+  <script src="issue.js?v=11"></script>
+  <script src="app.js?v=11"></script>
 </body>
 </html>

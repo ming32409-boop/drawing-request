@@ -62,6 +62,14 @@ expect_err(submit(U['app'], QC, types="array['藍圖']"), U['app'], 'requests_da
 expect_err(submit(U['app'], BUY), U['app'], '尚未設定部門主管', 'rejects department without manager')
 expect_err(submit(U['app'], QC, need="'2020-01-01'"), U['app'], '不能早於今天', 'rejects past need date')
 expect_err(submit(U['off'], QC), U['off'], '停用', 'inactive user cannot submit')
+# 006：品號格式
+def submit_items(items):
+    return f"select submit_request({QC}::smallint, null, array['圖面'], E'{items}', '設計參考', null, array['2D PDF'], null, null, null)"
+expect_err(submit_items('AB-1 示範'), U['app'], '第 1 行缺少斜線', 'rejects item line without slash')
+expect_err(submit_items('AB-1/示範\\n\\n/示範'), U['app'], '第 3 行斜線前面缺少品號', 'rejects missing part number, counts blank lines')
+expect_err(submit_items('AB-1/示範\\nAB-2/  '), U['app'], '第 2 行斜線後面缺少名稱', 'rejects missing name')
+expect_err("select check_item_lines('x')", U['app'], 'permission denied', 'check_item_lines not callable from frontend')
+ok(val("select check_item_lines(E'AB-1/示範\\n\\nAB-2/示範/含斜線的名稱') is null", role='service_role') == 't', 'valid lines pass (extra slashes in name allowed)')
 
 # happy path
 d1 = val(submit(U['app'], QC, purpose="'提供給客戶'"), U['app'])

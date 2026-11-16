@@ -38,7 +38,7 @@ async function asUser(uid, sql, params) {
     const r = await c.query(sql, params); await c.query('commit'); return r.rows;
   } catch (e) { await c.query('rollback'); throw e; } finally { c.release(); }
 }
-const REQ_COLS = `r.id, r.doc_no, r.created_at, r.status, r.is_external, r.department_other, r.data_types, r.items,
+const REQ_COLS = `r.id, r.doc_no, r.created_at, r.status, r.is_external, r.department_id, r.department_other, r.data_types, r.items,
   r.purpose, r.purpose_other, r.formats, r.format_other, r.need_date, r.external_note, r.stage1_result, r.stage1_reason,
   r.stage2_result, r.stage2_reason, r.delivery_method, r.delivery_method_other, r.delivered_at`;
 const rpcArgs = {
@@ -76,7 +76,7 @@ async function api(route) {
     if (u.pathname === '/rest/v1/requests' && p.get('status')) {
       // 待我簽核：status=eq.X，可能有 department_id=in.(1,2)
       const ids = p.get('department_id') ? p.get('department_id').replace(/^in\.\(|\)$/g, '').split(',').map(Number) : null;
-      return reply(await asUser(uid, `select ${REQ_COLS}, r.department_id, r.stage1_at, r.stage2_at,
+      return reply(await asUser(uid, `select ${REQ_COLS}, r.stage1_at, r.stage2_at,
           case when s2.id is null then null else json_build_object('display_name', s2.display_name) end as stage2_by_profile,
           json_build_object('display_name', ap.display_name) as applicant,
           case when s1.id is null then null else json_build_object('display_name', s1.display_name) end as stage1_by_profile,
@@ -123,7 +123,8 @@ async function api(route) {
   await ctx.route(SB + '/**', api);
   const p = await ctx.newPage();
   p.on('pageerror', e => ok(false, 'page error ' + e));
-  p.on('dialog', d => d.accept());
+  const dialogs = [];
+  p.on('dialog', d => { dialogs.push(d.message()); d.accept(); });
 
   global.CURRENT = U.app;
   await p.goto(PAGE);
@@ -159,6 +160,27 @@ async function api(route) {
   await p.waitForSelector('#form-message.error');
   ok((await p.textContent('#form-message')).includes('尚未設定部門主管'), 'server error shown: ' + await p.textContent('#form-message'));
 
+  // 品號格式防呆：指出第幾行有錯，不呼叫後端
+  await p.fill('#items', 'AB-1 示範\n\n/只有名稱\nAB-2/\nAB-3');
+  const nRpc = calls.filter(c => c.includes('rpc')).length;
+  await p.click('#submit-btn');
+  const itemErr = await p.textContent('[data-for=items]');
+  ok(itemErr.includes('第 1 行缺少斜線') && itemErr.includes('第 3 行斜線前面缺少品號') && itemErr.includes('第 4 行斜線後面缺少名稱') && itemErr.includes('另有 1 行'),
+     'rejects_bad_item_lines with line numbers: ' + itemErr);
+  ok(calls.filter(c => c.includes('rpc')).length === nRpc, 'no RPC when item lines are invalid');
+  if (process.env.SHOT_DIR) await p.locator('#items').locator('xpath=..').screenshot({ path: process.env.SHOT_DIR + '/d-item-error.png' });
+  // 離開欄位時就提醒品號重複（大小寫視為相同），但不算錯誤
+  await p.fill('#items', 'AB-1/示範甲\nab-1/示範乙');
+  await p.locator('#items').blur();
+  await p.waitForFunction(() => document.getElementById('items-warn').textContent !== '');
+  ok((await p.textContent('#items-warn')).includes('品號重複') && (await p.textContent('#items-warn')).includes('第 1、2 行') && await p.textContent('[data-for=items]') === '',
+     'duplicate part numbers warned on blur');
+  if (process.env.SHOT_DIR) await p.locator('#items').locator('xpath=..').screenshot({ path: process.env.SHOT_DIR + '/d-item-dup.png' });
+  await p.fill('#items', 'AB-1/示範甲');
+  await p.locator('#items').blur();
+  await p.waitForTimeout(600);
+  ok(await p.textContent('#items-warn') === '', 'duplicate warning clears after fixing');
+
   // 成功送出（外部用途）
   await p.selectOption('#department', { label: '品管課' });
   await p.check('input[value="材質證明"]');
@@ -182,12 +204,16 @@ async function api(route) {
   // XSS 測試用第二筆
   await p.selectOption('#department', { label: '品管課' });
   await p.check('input[value="測試報告"]');
-  await p.fill('#items', '<img src=x onerror="window.__xss=1">');
+  // 全形斜線會自動改成半形；品號重複時跳出確認，按確定仍可送出
+  await p.fill('#items', '  X-1／<img src=x onerror="window.__xss=1">  \n\nx-1/重複的品號');
   await p.selectOption('#purpose', '設計參考');
   await p.check('input[value="3D STEP或STP"]');
   await p.click('#submit-btn');
   await p.waitForSelector('#form-message.success');
   const doc2 = (await p.textContent('#form-message')).match(/DOC-\d{8}-\d{3}/)[0];
+  ok(dialogs.some(m => m.includes('重複的品號') && m.includes('X-1')), 'duplicate part numbers ask for confirmation on submit');
+  ok((await pool.query('select items from public.requests where doc_no = $1', [doc2])).rows[0].items === 'X-1/<img src=x onerror="window.__xss=1">\nx-1/重複的品號',
+     'items saved normalized (fullwidth slash, trimmed, blank lines removed)');
 
   // 我的申請
   await p.click('a[data-tab=mine]');
@@ -208,6 +234,10 @@ async function api(route) {
   await p.waitForSelector('#mine-message.success');
   await p.waitForFunction(d => [...document.querySelectorAll('.request-item')].some(li => li.textContent.includes(d) && li.textContent.includes('已撤回')), doc1);
   ok((await pool.query('select status from public.requests where doc_no=$1', [doc1])).rows[0].status === '已撤回', 'withdraw works (DB)');
+  const itW = p.locator('.request-item', { hasText: doc1 });
+  await itW.locator('.item-head').click();
+  ok(await itW.locator('.copy-request').isVisible() && await p.locator('.request-item', { hasText: doc2 }).locator('.copy-request').count() === 0,
+     'copy button only on withdrawn/rejected requests');
 
   // 主管核准第一關後：不能撤回，紀錄顯示
   const id2 = (await pool.query('select id from public.requests where doc_no=$1', [doc2])).rows[0].id;
@@ -318,6 +348,20 @@ async function api(route) {
   await itRej.locator('.item-head').click();
   await itRej.locator('.t-note.reject').waitFor();
   ok((await itRej.locator('.t-note.reject').textContent()) === '用途說明不足（測試）', 'reject reason shown in red');
+  // 複製內容重新申請：帶入原內容，修改後送出成為新的一張
+  await itRej.locator('.copy-request').click();
+  await pg.waitForSelector('#view-new:not([hidden])');
+  ok(await pg.inputValue('#items') === 'RV-0002/示範待駁回' && await pg.locator('#department option:checked').textContent() === '品管課' &&
+     await pg.isChecked('input[name=data_types][value="圖面"]') && await pg.isChecked('input[name=formats][value="2D PDF"]') && await pg.inputValue('#purpose') === '設計參考',
+     'copy prefills the form');
+  const note = await pg.textContent('#prefill-note');
+  ok(note.includes('已帶入 DOC-') && note.includes('用途說明不足（測試）'), 'prefill note shows source and reject reason: ' + note);
+  await shot(pg, 'd-copy');
+  await pg.fill('#items', 'RV-0002/示範待駁回（已補充用途）');
+  await pg.click('#submit-btn');
+  await pg.waitForSelector('#form-message.success');
+  const copies = (await pool.query(`select status from public.requests where items like 'RV-0002%' order by created_at`)).rows.map(r => r.status);
+  ok(copies.join() === '已駁回,申請主管簽核中' && await pg.locator('#prefill-note').isHidden(), 'copy creates a new request; rejected one is kept');
   await pg.context().close();
 
   // 核發主管：看到第一關已核准的那筆，核准後待文管發放

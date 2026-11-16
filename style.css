@@ -106,6 +106,10 @@ label, legend {
 .items-count:empty { display: none; }
 .field-error { margin-top: 8px; color: var(--danger); font-size: 0.86rem; }
 .field-error:empty { display: none; }
+.field-warn { margin-top: 8px; color: var(--warn); background: var(--warn-bg); padding: 9px 13px; border-radius: 12px; font-size: 0.86rem; }
+.field-warn:empty { display: none; }
+.prefill-note { margin: 0 0 22px; }
+.item-detail > .copy-request { margin-top: 18px; min-height: 44px; }
 .external {
   margin-top: 10px; color: var(--warn); background: var(--warn-bg);
   padding: 11px 14px; border-radius: 14px; font-size: 0.88rem; animation: rise 0.5s var(--ease) both;

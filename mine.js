@@ -7,7 +7,7 @@
 
   var REQUEST_FIELDS = [
     "id", "doc_no", "created_at", "status", "is_external",
-    "department_other", "data_types", "items", "purpose", "purpose_other",
+    "department_id", "department_other", "data_types", "items", "purpose", "purpose_other",
     "formats", "format_other", "need_date", "external_note",
     "stage1_result", "stage1_reason", "stage2_result", "stage2_reason",
     "delivery_method", "delivery_method_other", "delivered_at",
@@ -132,6 +132,13 @@
       wbtn.type = "button";
       wbtn.addEventListener("click", function () { withdraw(r, wbtn); });
       detail.appendChild(wbtn);
+    }
+    // 被駁回或已撤回的申請：把內容帶回表單，修改後送出成為新的申請
+    if ((r.status === "已駁回" || r.status === "已撤回") && ctx.onCopy) {
+      var cbtn = C.el("button", "secondary copy-request", "複製內容重新申請");
+      cbtn.type = "button";
+      cbtn.addEventListener("click", function () { ctx.onCopy(r); });
+      detail.appendChild(cbtn);
     }
     li.appendChild(detail);
 

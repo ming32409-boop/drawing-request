@@ -11,8 +11,8 @@
   <meta property="og:description" content="開發部圖面資料申請與簽核：點開後用 LINE 登入即可申請、簽核或查看進度。">
   <meta property="og:type" content="website">
   <link rel="icon" type="image/svg+xml" href="icon.svg">
-  <link rel="stylesheet" href="theme.css?v=11">
-  <link rel="stylesheet" href="style.css?v=11">
+  <link rel="stylesheet" href="theme.css?v=12">
+  <link rel="stylesheet" href="style.css?v=12">
 </head>
 <body>
   <header class="app-bar">
@@ -50,6 +50,19 @@
   <main>
     <!-- 登入中／錯誤／待啟用 -->
     <section id="view-status" class="card status-card">
+      <div class="welcome">
+        <svg class="welcome-mark" viewBox="0 0 32 32" aria-hidden="true">
+          <rect width="32" height="32" rx="9" fill="currentColor"/>
+          <g class="glyph" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M10.5 8h7.2l4.3 4.3V23a1 1 0 0 1-1 1H10.5a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z"/>
+            <path d="M17.5 8.2v4.3h4.3"/>
+            <path d="M13 17h6M13 20.2h3.6"/>
+          </g>
+          <circle class="dot" cx="25.5" cy="6.5" r="3.6" stroke-width="1.6"/>
+        </svg>
+        <h2 class="welcome-title">圖面資料申請</h2>
+        <p class="welcome-sub">線上申請・主管手機簽核・文管發放後 LINE 通知</p>
+      </div>
       <div id="status" class="message info loading" role="status" aria-live="polite">登入中…</div>
       <p id="pending-hint" class="hint" hidden>
         帳號已建立，請通知系統管理員為你啟用帳號。啟用後重新開啟本頁即可使用。
@@ -198,13 +211,13 @@
 
   <script src="https://static.line-scdn.net/liff/edge/2/sdk.js" charset="utf-8"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
-  <script src="config.js?v=11"></script>
-  <script src="auth.js?v=11"></script>
-  <script src="common.js?v=11"></script>
-  <script src="form.js?v=11"></script>
-  <script src="mine.js?v=11"></script>
-  <script src="review.js?v=11"></script>
-  <script src="issue.js?v=11"></script>
-  <script src="app.js?v=11"></script>
+  <script src="config.js?v=12"></script>
+  <script src="auth.js?v=12"></script>
+  <script src="common.js?v=12"></script>
+  <script src="form.js?v=12"></script>
+  <script src="mine.js?v=12"></script>
+  <script src="review.js?v=12"></script>
+  <script src="issue.js?v=12"></script>
+  <script src="app.js?v=12"></script>
 </body>
 </html>

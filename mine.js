@@ -160,8 +160,8 @@
         .order("created_at", { ascending: false }).limit(LIMIT);
       if (res.error) { C.showMessage(msgEl, "error", "無法載入：" + C.describeError(res.error)); return; }
       listEl.replaceChildren();
-      if (!res.data.length) { C.showMessage(msgEl, "info", "還沒有申請紀錄。"); return; }
-      if (msgEl.classList.contains("info")) C.hideMessage(msgEl);
+      if (!res.data.length) { C.showEmpty(msgEl, "還沒有申請紀錄", "到「新增申請」填寫第一張，進度會顯示在這裡。"); return; }
+      if (msgEl.classList.contains("info") || msgEl.classList.contains("empty-state")) C.hideMessage(msgEl);
       res.data.forEach(function (r) { listEl.appendChild(renderItem(r)); });
     } catch (err) {
       C.showMessage(msgEl, "error", "無法載入：" + C.describeError(err));

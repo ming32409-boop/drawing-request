@@ -5,7 +5,7 @@
 /* ---------- 標題與篩選 ---------- */
 .dash-head { display: flex; flex-direction: column; gap: 22px; margin-bottom: 26px; }
 .page-head { margin: 0 6px; animation: rise 0.7s var(--ease) both; }
-.page-head h2 { font-size: clamp(2rem, 6vw, 3.2rem); font-weight: 760; letter-spacing: -0.015em; line-height: 1.1; }
+.page-head h2 { font-size: var(--fs-display); font-weight: 700; letter-spacing: -0.015em; line-height: 1.1; }
 .lead { margin-top: 10px; color: var(--ink-2); font-size: 0.92rem; }
 .filters { display: flex; flex-direction: column; gap: 10px; min-width: 0; animation: rise 0.7s var(--ease) 0.06s both; }
 .seg {
@@ -74,10 +74,10 @@
 /* 每月趨勢：圖表撐滿卡片高度 */
 .panel.span-8 { display: flex; flex-direction: column; }
 .panel.span-8 .colchart { flex: 1 1 240px; height: auto; min-height: 220px; }
-.panel h2 { display: flex; align-items: center; gap: 10px; font-size: 1.08rem; font-weight: 700; letter-spacing: 0.02em; }
+.panel h2 { display: flex; align-items: center; gap: 10px; font-size: var(--fs-heading); font-weight: 700; letter-spacing: 0.02em; }
 .idx { font-size: 0.7rem; font-weight: 600; letter-spacing: 0.1em; color: var(--ink-3); padding: 2px 9px; border-radius: 999px; background: var(--neutral-bg); }
 .panel h3 { margin: 22px 0 8px; font-size: 0.8rem; font-weight: 600; letter-spacing: 0.08em; color: var(--ink-2); }
-.note { margin: 6px 0 16px; color: var(--ink-3); font-size: 0.8rem; line-height: 1.5; }
+.note { margin: 6px 0 16px; color: var(--ink-3); font-size: var(--fs-small); line-height: 1.5; }
 .empty { color: var(--ink-3); font-size: 0.88rem; padding: 6px 0; }
 @media (min-width: 960px) {
   .bento { grid-template-columns: repeat(12, 1fr); }

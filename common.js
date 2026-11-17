@@ -43,6 +43,22 @@
       el.textContent = text;
       el.hidden = false;
     },
+    // 清單沒有資料時的空狀態（細線圖示＋說明）
+    showEmpty: function (el, title, hint) {
+      el.className = "empty-state";
+      el.replaceChildren();
+      var t = document.createElement("p");
+      t.className = "empty-title";
+      t.textContent = title;
+      el.appendChild(t);
+      if (hint) {
+        var h = document.createElement("p");
+        h.className = "empty-hint";
+        h.textContent = hint;
+        el.appendChild(h);
+      }
+      el.hidden = false;
+    },
     hideMessage: function (el) {
       el.hidden = true;
       el.textContent = "";

@@ -145,7 +145,21 @@
       updateOthers();
       showDuplicateWarning([]);
       prefillNote.hidden = true;
-      C.showMessage(msg, "success", "已送出申請，單號 " + docNo + "。可以在「我的申請」查看進度。");
+      C.showMessage(msg, "success", "");
+      var text = document.createElement("span");
+      text.className = "message-text";
+      text.appendChild(document.createTextNode("已送出申請，單號 "));
+      var no = document.createElement("strong");
+      no.className = "nowrap";
+      no.textContent = docNo;
+      text.appendChild(no);
+      text.appendChild(document.createTextNode("。主管會收到 LINE 通知。"));
+      msg.appendChild(text);
+      var link = document.createElement("a");
+      link.href = "#mine";
+      link.className = "message-link";
+      link.textContent = "查看進度";
+      msg.appendChild(link);
       if (ctx.onSubmitted) ctx.onSubmitted(docNo);
     } catch (err) {
       C.showMessage(msg, "error", C.describeError(err));

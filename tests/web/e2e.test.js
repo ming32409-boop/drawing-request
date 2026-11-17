@@ -197,6 +197,8 @@ async function api(route) {
   const msg = await p.textContent('#form-message');
   const doc1 = (msg.match(/DOC-\d{8}-\d{3}/) || [])[0];
   ok(!!doc1, 'submits and shows doc number: ' + msg);
+  ok(await p.getAttribute('#form-message .message-link', 'href') === '#mine', 'success message links to 我的申請');
+  if (process.env.SHOT_DIR) await p.locator('.form-actions').screenshot({ path: process.env.SHOT_DIR + '/e-success.png' });
   const row = (await pool.query('select * from public.requests where doc_no = $1', [doc1])).rows[0];
   ok(row && row.status === '申請主管簽核中' && row.is_external && row.data_types.join() === '圖面,材質證明' && row.applicant_id === U.app && row.need_date.toISOString && row.items.split('\n').length === 2, 'DB row correct');
   ok(await p.inputValue('#items') === '' && !(await p.isChecked('input[value="圖面"]')), 'form resets after submit');
@@ -264,6 +266,8 @@ async function api(route) {
   const p2 = await c2.newPage(); await p2.goto(PAGE);
   await p2.waitForSelector('#pending-hint:not([hidden])');
   ok(await p2.locator('#tabs').isHidden() && await p2.locator('#view-new').isHidden(), 'inactive user: no tabs/form');
+  ok(await p2.locator('.welcome-title').isVisible() && await p2.locator('#pending-hint').isVisible(), 'inactive user sees welcome screen with pending hint');
+  if (process.env.SHOT_DIR) await p2.screenshot({ path: process.env.SHOT_DIR + '/e-pending.png' });
   await b2.close();
 
   // ===== 第 7 步：待我簽核 =====
@@ -379,6 +383,12 @@ async function api(route) {
   await pool.query(`insert into auth.users values ('${DCC}'), ('${DCC2}');
     insert into public.profiles (id, line_user_id, display_name, active, is_dcc) values
       ('${DCC}', 'U${'5'.repeat(32)}', '示範文管', true, true), ('${DCC2}', 'U${'6'.repeat(32)}', '示範文管二', true, true);`);
+  // 沒有申請過的人：我的申請顯示空狀態
+  pg = await openAs(DCC, PAGE + '?tab=mine');
+  await pg.waitForSelector('#mine-message.empty-state');
+  ok((await pg.textContent('#mine-message .empty-title')) === '還沒有申請紀錄', 'empty state for 我的申請');
+  if (process.env.SHOT_DIR) await pg.screenshot({ path: process.env.SHOT_DIR + '/e-empty.png' });
+  await pg.context().close();
   // 非文管看不到分頁，?tab=issue 退回新增申請
   pg = await openAs(ISS, PAGE + '?tab=issue');
   ok(await pg.locator('a[data-tab=issue]').isHidden() && await pg.locator('#view-new').isVisible(), 'non-dcc: no issue tab, ?tab=issue falls back');

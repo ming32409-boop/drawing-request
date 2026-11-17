@@ -134,11 +134,11 @@
       setCount(res.data.length);
       if (!res.data.length) {
         if (!msgEl.classList.contains("success") && !msgEl.classList.contains("error")) {
-          C.showMessage(msgEl, "info", "目前沒有待發放的申請。");
+          C.showEmpty(msgEl, "目前沒有待發放的申請", "主管核准後，會用 LINE 通知你備檔發放。");
         }
         return;
       }
-      if (msgEl.classList.contains("info")) C.hideMessage(msgEl);
+      if (msgEl.classList.contains("info") || msgEl.classList.contains("empty-state")) C.hideMessage(msgEl);
       res.data.forEach(function (r) { listEl.appendChild(renderItem(r)); });
     } catch (err) {
       C.showMessage(msgEl, "error", "無法載入：" + C.describeError(err));

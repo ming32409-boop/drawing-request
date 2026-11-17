@@ -40,8 +40,8 @@ main {
 }
 .card { padding: 22px 18px; }
 .page-head { margin: 0 8px 22px; animation: rise 0.7s var(--ease) both; }
-.page-head h2 { font-size: clamp(1.85rem, 7vw, 2.4rem); font-weight: 760; letter-spacing: -0.01em; line-height: 1.15; }
-.lead { margin-top: 10px; color: var(--ink-2); font-size: 0.92rem; max-width: 34em; }
+.page-head h2 { font-size: var(--fs-title); font-weight: 700; letter-spacing: -0.01em; line-height: 1.15; }
+.lead { margin-top: 10px; color: var(--ink-2); font-size: var(--fs-body-md); max-width: 34em; }
 .list-header { display: flex; justify-content: space-between; align-items: flex-end; gap: 12px; }
 
 /* 卡片進場：由下往上淡入，前幾張依序出現 */
@@ -52,8 +52,14 @@ main > section > .card { animation-delay: 0.08s; }
 .request-item:nth-child(4) { animation-delay: 0.18s; }
 .request-item:nth-child(n+5) { animation-delay: 0.24s; }
 
-/* 登入狀態 */
-.status-card { margin-top: 24px; display: flex; flex-direction: column; gap: 14px; }
+/* 登入狀態（歡迎畫面） */
+.status-card { margin-top: 24px; display: flex; flex-direction: column; gap: 16px; padding: 40px 22px 26px; }
+.welcome { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 6px; margin-bottom: 8px; }
+.welcome-mark { width: 64px; height: 64px; color: var(--ink); margin-bottom: 14px; filter: drop-shadow(0 14px 22px rgba(21, 23, 26, 0.18)); }
+.welcome-mark .glyph { stroke: var(--surface); }
+.welcome-mark .dot { fill: var(--brand); stroke: var(--surface); }
+.welcome-title { font-size: var(--fs-title); font-weight: 700; letter-spacing: -0.01em; line-height: 1.15; }
+.welcome-sub { color: var(--ink-3); font-size: var(--fs-small); letter-spacing: 0.04em; }
 .hint { color: var(--warn); background: var(--warn-bg); padding: 13px 16px; border-radius: 16px; font-size: 0.94rem; }
 .status-card .secondary { align-self: flex-start; }
 
@@ -61,7 +67,7 @@ main > section > .card { animation-delay: 0.08s; }
 .form-section { padding: 6px 4px 10px; margin-bottom: 22px; box-shadow: 0 1px 0 var(--hair); }
 .section-title {
   display: flex; align-items: center; gap: 10px; margin-bottom: 18px;
-  font-size: 1.02rem; font-weight: 700; letter-spacing: 0.03em;
+  font-size: var(--fs-heading); font-weight: 700; letter-spacing: 0.02em;
 }
 .step-no {
   display: inline-grid; place-items: center; width: 26px; height: 26px; border-radius: 50%;
@@ -70,7 +76,7 @@ main > section > .card { animation-delay: 0.08s; }
 .field { margin: 0 0 20px; border: 0; padding: 0; min-width: 0; }
 label, legend {
   display: block; padding: 0; margin-bottom: 8px;
-  font-size: 0.86rem; font-weight: 600; color: var(--ink-2); letter-spacing: 0.04em;
+  font-size: var(--fs-label); font-weight: 600; color: var(--ink-2); letter-spacing: 0.04em;
 }
 .req { color: var(--danger); margin-left: 1px; }
 .sub {
@@ -98,7 +104,7 @@ label, legend {
 .chip input:focus-visible + span { outline: 2px solid var(--ink); outline-offset: 3px; }
 
 .hint-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-top: 8px; }
-.hint-text { color: var(--ink-3); font-size: 0.8rem; line-height: 1.55; }
+.hint-text { color: var(--ink-3); font-size: var(--fs-small); line-height: 1.55; }
 .items-count {
   flex: none; font-size: 0.76rem; font-weight: 600; color: var(--ink-2);
   background: var(--neutral-bg); border-radius: 999px; padding: 3px 11px; white-space: nowrap;
@@ -135,7 +141,7 @@ label, legend {
 .doc-no { font-size: 1rem; font-weight: 650; letter-spacing: 0.02em; }
 .item-summary { margin-top: 10px; font-size: 1rem; word-break: break-word; }
 .item-meta-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 2px; }
-.item-meta { color: var(--ink-3); font-size: 0.8rem; letter-spacing: 0.02em; }
+.item-meta { color: var(--ink-3); font-size: var(--fs-small); letter-spacing: 0.02em; }
 .chev {
   flex: none; width: 26px; height: 26px; border-radius: 50%;
   background: var(--neutral-bg) var(--chevron) center / 14px no-repeat;
@@ -190,7 +196,7 @@ label, legend {
 }
 .timeline li:last-child { padding-bottom: 0; }
 .timeline li:last-child::after { display: none; }
-.t-time { color: var(--ink-3); font-size: 0.76rem; letter-spacing: 0.02em; }
+.t-time { color: var(--ink-3); font-size: var(--fs-label-sm); letter-spacing: 0.02em; }
 .t-what { font-size: 0.92rem; font-weight: 600; }
 .t-note { color: var(--ink-2); font-size: 0.86rem; }
 .t-note.reject { color: var(--danger); }

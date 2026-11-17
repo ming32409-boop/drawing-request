@@ -72,6 +72,9 @@ where display_name = '你的 LINE 名稱';
 ```
 
 ## 介面設計
+- **設計規範在 `DESIGN.md`**（Google DESIGN.md 格式）：配色、字級、圓角、間距、元件的正式數值與使用原則。修改樣式前先看這份。
+  - 檢查規範：`npx @google/design.md lint DESIGN.md`（含 WCAG 對比度檢查）
+  - 檢查 `theme.css` 的顏色是否和規範一致：`python3 tests/check_design_tokens.py`
 - `theme.css`：兩個頁面共用的配色、字型、按鈕、輸入框、卡片樣式，支援深色模式（跟隨系統設定）。`style.css` 是申請頁版面，`dashboard.css` 是看板版面。
 - 風格：銀灰底、白色「雙層邊框」卡片、墨色膠囊按鈕；顏色只用來表示狀態（簽核中、已發放、已駁回、外部用途）和圖表資料。
 - 英數字使用 Geist 字型（`fonts/geist-latin.woff2`，SIL Open Font License，授權見 `fonts/LICENSE-Geist.txt`）；中文使用裝置的系統字型。

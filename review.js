@@ -151,10 +151,10 @@
       listEl.replaceChildren();
       setCount(rows.length);
       if (!rows.length) {
-        if (!msgEl.classList.contains("success")) C.showMessage(msgEl, "info", "目前沒有待簽核的申請。");
+        if (!msgEl.classList.contains("success")) C.showEmpty(msgEl, "目前沒有待簽核的申請", "有新的申請時，會用 LINE 通知你。");
         return;
       }
-      if (msgEl.classList.contains("info")) C.hideMessage(msgEl);
+      if (msgEl.classList.contains("info") || msgEl.classList.contains("empty-state")) C.hideMessage(msgEl);
       rows.forEach(function (r) { listEl.appendChild(renderItem(r)); });
     } catch (err) {
       C.showMessage(msgEl, "error", "無法載入：" + C.describeError(err));

@@ -91,8 +91,8 @@
     rows.forEach(function (r) {
       var row = el("div", "hbar");
       var name = el("span", "name");
-      if (r.flag) name.appendChild(el("span", "flag", r.flag));
       name.appendChild(document.createTextNode(r.label));
+      if (r.flag) name.appendChild(el("span", "flag", r.flag));
       row.appendChild(name);
       var track = el("div", "track");
       var fill = el("div", "fill");
@@ -205,7 +205,7 @@
 
   function renderExternal(d) {
     hbars(document.getElementById("purpose"), d.by_purpose.map(function (r) {
-      return { label: r.label, n: r.n, flag: r.external ? "⚠" : "", text: r.n + " 件", tip: r.label + (r.external ? "（外部用途）" : "") + "\n" + r.n + " 件" };
+      return { label: r.label, n: r.n, flag: r.external ? "外部" : "", text: r.n + " 件", tip: r.label + (r.external ? "（外部用途）" : "") + "\n" + r.n + " 件" };
     }));
     hbars(document.getElementById("external-targets"), d.external_targets.map(function (r) { return { label: r.label, n: r.n, text: r.n + " 件" }; }),
       { empty: "期間內沒有填寫外發對象的外部用途申請。" });

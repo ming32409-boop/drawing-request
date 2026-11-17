@@ -75,9 +75,10 @@ where display_name = '你的 LINE 名稱';
 - **設計規範在 `DESIGN.md`**（Google DESIGN.md 格式）：配色、字級、圓角、間距、元件的正式數值與使用原則。修改樣式前先看這份。
   - 檢查規範：`npx @google/design.md lint DESIGN.md`（含 WCAG 對比度檢查）
   - 檢查 `theme.css` 的顏色是否和規範一致：`python3 tests/check_design_tokens.py`
-- `theme.css`：兩個頁面共用的配色、字型、按鈕、輸入框、卡片樣式，支援深色模式（跟隨系統設定）。`style.css` 是申請頁版面，`dashboard.css` 是看板版面。
-- 風格：銀灰底、白色「雙層邊框」卡片、墨色膠囊按鈕；顏色只用來表示狀態（簽核中、已發放、已駁回、外部用途）和圖表資料。
-- 英數字使用 Geist 字型（`fonts/geist-latin.woff2`，SIL Open Font License，授權見 `fonts/LICENSE-Geist.txt`）；中文使用裝置的系統字型。
+- `theme.css`：兩個頁面共用的配色、字型、按鈕、輸入框、面板樣式，支援深色模式（跟隨系統設定）。`style.css` 是申請頁版面，`dashboard.css` 是看板版面。
+- 風格「Title Block（圖框標題欄）」：暖白紙底、白色面板、1px 細線分隔、普魯士藍當唯一的行動色；單號、品號、區段編號用等寬字。顏色只用來表示狀態（簽核中、已發放、已駁回、外部用途）和圖表資料。
+- 申請頁在電腦上會改成「左欄區段標題、右欄欄位」；看板的重點數字是一條細線格，第一格（申請總數）放大。
+- 英數字使用 Geist 字型（`fonts/geist-latin.woff2`，SIL Open Font License，授權見 `fonts/LICENSE-Geist.txt`）；中文使用裝置的系統字型，等寬字使用系統的 `ui-monospace`。
 - 動畫只使用 `transform` 與 `opacity`；使用者設定「減少動態效果」時會自動關閉。
 - 修改樣式或程式後，請把 `index.html`、`dashboard.html` 裡的 `?v=數字` 加 1，手機上的 LINE 才會讀到新版。
 

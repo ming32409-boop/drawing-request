@@ -483,7 +483,7 @@ async function api(route) {
   ok((await pg.textContent('#top-items')).includes('HP-9') && (await pg.textContent('#top-items')).includes('HP-0'), 'top items lists part numbers');
   ok((await pg.textContent('#external-targets')).includes('示範客戶B'), 'external targets listed');
   ok((await pg.textContent('#reject-reasons')).includes('資料不足（測試）'), 'reject reasons listed');
-  ok((await pg.locator('#purpose .flag').count()) >= 1, 'external purposes flagged ⚠');
+  ok((await pg.locator('#purpose .flag').count()) >= 1, 'external purposes tagged 外部');
   // 先捲到圖表再移入滑鼠（捲動會關閉提示框，這是設計上的行為）
   await pg.locator('#monthly .col').last().scrollIntoViewIfNeeded();
   await pg.waitForTimeout(300);

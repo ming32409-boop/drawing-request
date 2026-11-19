@@ -12,9 +12,11 @@ import yaml
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 # DESIGN.md token → theme.css 變數
 MAPPING = {
-    "primary": "--ink", "on-primary": "--on-ink", "secondary": "--ink-2", "muted": "--ink-3",
-    "neutral": "--bg", "surface": "--surface", "surface-dim": "--surface-2", "accent": "--brand",
-    "chart-1": "--series-1",
+    "primary": "--primary", "on-primary": "--on-primary", "primary-container": "--primary-soft",
+    "ink": "--ink", "secondary": "--ink-2", "muted": "--ink-3",
+    "neutral": "--bg", "surface": "--surface", "surface-dim": "--surface-2", "surface-chip": "--surface-3",
+    "outline": "--line", "outline-strong": "--line-strong", "outline-field": "--field",
+    "accent": "--brand", "chart-1": "--series-1",
     "success": "--ok", "success-container": "--ok-bg", "info": "--info", "info-container": "--info-bg",
     "warning": "--warn", "warning-container": "--warn-bg", "error": "--danger", "error-container": "--danger-bg",
 }

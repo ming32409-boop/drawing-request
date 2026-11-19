@@ -4,14 +4,14 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
-  <meta name="theme-color" content="#17181b" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#16181b" media="(prefers-color-scheme: dark)">
   <title>管理看板｜圖面資料申請</title>
   <meta name="description" content="開發部圖面資料申請的管理看板：申請趨勢、處理速度、外部用途、常用品號、駁回分析。">
   <meta property="og:title" content="管理看板｜圖面資料申請">
   <meta property="og:description" content="申請趨勢、處理速度、外部用途、常用品號、駁回分析。需以 LINE 登入，限核發主管、文管與系統管理員。">
   <link rel="icon" type="image/svg+xml" href="icon.svg">
-  <link rel="stylesheet" href="theme.css?v=12">
-  <link rel="stylesheet" href="dashboard.css?v=12">
+  <link rel="stylesheet" href="theme.css?v=15">
+  <link rel="stylesheet" href="dashboard.css?v=15">
 </head>
 <body>
   <div class="viz-root">
@@ -35,7 +35,7 @@
         <span id="who" class="who"></span>
         <a href="./" class="pill-link">
           <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9.5 3.5L5 8l4.5 4.5"/></svg>
-          申請頁
+          <span class="pill-text">申請頁</span>
         </a>
       </div>
     </header>
@@ -97,7 +97,7 @@
 
           <section class="panel span-5" aria-labelledby="t-external">
             <h2 id="t-external"><span class="idx">03</span>申請用途與外部用途</h2>
-            <p class="note">⚠ 為外部用途（提供給客戶、廠商詢價或發包）。</p>
+            <p class="note">標示「外部」的用途會把資料提供給公司以外的對象。</p>
             <div id="purpose" class="hbars"></div>
             <h3>常見外發對象</h3>
             <p class="note">依「預計外發對象／備註說明」的內容統計。</p>
@@ -136,9 +136,9 @@
 
   <script src="https://static.line-scdn.net/liff/edge/2/sdk.js" charset="utf-8"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
-  <script src="config.js?v=12"></script>
-  <script src="auth.js?v=12"></script>
-  <script src="common.js?v=12"></script>
-  <script src="dashboard.js?v=12"></script>
+  <script src="config.js?v=15"></script>
+  <script src="auth.js?v=15"></script>
+  <script src="common.js?v=15"></script>
+  <script src="dashboard.js?v=15"></script>
 </body>
 </html>

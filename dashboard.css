@@ -26,13 +26,25 @@
   background: var(--surface); color: var(--ink);
   box-shadow: 0 0 0 1px var(--line-strong), 0 1px 2px rgba(22, 24, 29, 0.08);
 }
-@media (pointer: coarse) { .seg button { min-height: 40px; } }
+
 .filters-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .range { display: flex; align-items: center; gap: 6px; min-width: 0; flex: 1 1 auto; }
 .range input[type="date"] { flex: 1 1 0; width: auto; min-height: 40px; padding: 6px 10px; font-size: 16px; }
 .range-sep { color: var(--ink-3); }
 #export-btn { margin-left: auto; }
-@media (max-width: 400px) { .seg button { padding: 0 9px; font-size: 0.8125rem; } }
+/* 手機：期間按鈕平均分滿一列；日期兩格一列，「套用」與「匯出」排在下一列 */
+@media (max-width: 480px) {
+  .seg { width: 100%; }
+  .seg button { flex: 1 1 auto; padding: 0 6px; }
+  .range { display: contents; }
+  .range input[type="date"] { flex: 1 1 40%; min-width: 0; }
+}
+@media (max-width: 400px) {
+  .seg button { font-size: 0.8125rem; }
+  .range input[type="date"] { padding: 6px; }   /* 窄螢幕：日期完整顯示 */
+  .range-sep { margin: 0 -4px; }
+  .range input[type="date"]::-webkit-calendar-picker-indicator { margin-left: 2px; }
+}
 @media (min-width: 960px) {
   .dash-main { padding-top: 44px; }
   .dash-head { flex-direction: row; align-items: flex-end; justify-content: space-between; margin-bottom: 32px; }
@@ -92,11 +104,21 @@
 .note { margin: 4px 0 16px; color: var(--ink-3); font-size: var(--fs-small); line-height: 1.5; }
 .panel h3 + .note { margin-top: -4px; }
 .empty { color: var(--ink-3); font-size: var(--fs-label); padding: 6px 0; }
+/* 平板：圖表兩欄；趨勢圖與品號表跨滿 */
+@media (min-width: 720px) and (max-width: 959px) {
+  .bento { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .span-8, .span-7, .bento > .panel:last-child { grid-column: 1 / -1; }
+}
 @media (min-width: 960px) {
   .bento { grid-template-columns: repeat(12, minmax(0, 1fr)); }
   .panel { padding: 24px 24px 22px; }
   .span-4 { grid-column: span 4; } .span-5 { grid-column: span 5; }
   .span-7 { grid-column: span 7; } .span-8 { grid-column: span 8; }
+}
+/* 小筆電：處理速度的名稱與表格需要多一點寬度（第一列改 7＋5） */
+@media (min-width: 960px) and (max-width: 1199px) {
+  .span-8 { grid-column: span 7; }
+  .panel[aria-labelledby="t-speed"] { grid-column: span 5; }
 }
 /* 捲動進場（由 dashboard.js 加上 .reveal，進入畫面後加上 .in） */
 .reveal { opacity: 0; transform: translateY(12px); transition: opacity 0.4s var(--ease), transform 0.4s var(--ease); }
@@ -192,3 +214,6 @@ table.data td.part { white-space: nowrap; max-width: 14em; overflow: hidden; tex
   table.data td.part { max-width: 10em; }
   .colchart { height: 200px; }
 }
+
+/* 觸控裝置：可點擊的東西至少 44px 高（放在最後，蓋過上面的基本尺寸） */
+@media (pointer: coarse) { .seg button, .range input[type="date"], .table-view summary { min-height: 44px; } }

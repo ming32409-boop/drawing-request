@@ -163,21 +163,23 @@ h1, h2, h3, p { margin: 0; }
   min-height: 60px; padding: 10px max(16px, (100% - var(--page-max, 640px)) / 2);
   background: var(--surface); border-bottom: 1px solid var(--line);
 }
-.brand { display: flex; align-items: center; gap: 10px; min-width: 0; color: inherit; text-decoration: none; }
+.brand { display: flex; align-items: center; gap: 10px; flex: 0 0 auto; min-width: 0; min-height: 40px; color: inherit; text-decoration: none; }
 .brand-mark { width: 30px; height: 30px; flex: none; color: var(--primary); }
 .brand-mark .glyph { stroke: var(--on-primary); }
 .brand-mark .dot { fill: var(--brand); stroke: var(--surface); }
 .brand-text { display: flex; flex-direction: column; min-width: 0; line-height: 1.3; }
-.brand-name { font-size: 0.9375rem; font-weight: 600; letter-spacing: 0.01em; white-space: nowrap; }
-.brand-sub { font-size: var(--fs-label-sm); color: var(--ink-3); letter-spacing: 0.02em; white-space: nowrap; }
-.app-bar-right { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.brand-name, .brand-sub { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.brand-name { font-size: 0.9375rem; font-weight: 600; letter-spacing: 0.01em; }
+.brand-sub { font-size: var(--fs-label-sm); color: var(--ink-3); letter-spacing: 0.02em; }
+/* 空間不夠時，只縮短右側的使用者名字（加「…」），標題保持完整 */
+.app-bar-right { display: flex; align-items: center; gap: 12px; flex: 0 3 auto; min-width: 0; }
 .who {
-  display: inline-flex; align-items: center; gap: 6px; min-width: 0; max-width: 10em;
+  position: relative; display: block; flex: 0 1 auto; min-width: 0; max-width: 12em; padding-left: 22px;
   font-size: var(--fs-small); color: var(--ink-2);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .who::before {
-  content: ""; flex: none; width: 16px; height: 16px; background-color: var(--ink-3);
+  content: ""; position: absolute; left: 0; top: 50%; width: 16px; height: 16px; margin-top: -8px; background-color: var(--ink-3);
   -webkit-mask: var(--i-user) center / contain no-repeat; mask: var(--i-user) center / contain no-repeat;
 }
 .who:empty { display: none; }
@@ -191,7 +193,13 @@ h1, h2, h3, p { margin: 0; }
 .pill-link:hover { background: var(--surface-2); border-color: var(--field); }
 .pill-link:active { transform: scale(0.98); }
 .pill-link svg { width: 15px; height: 15px; flex: none; }
-@media (pointer: coarse) { .pill-link { min-height: 40px; } }
+@media (pointer: coarse) { .pill-link, .brand { min-height: 44px; } }
+@media (max-width: 400px) { .brand-sub { display: none; } }
+/* 很窄的手機：「管理看板」「申請頁」只留圖示（文字仍給螢幕報讀器） */
+@media (max-width: 360px) {
+  .pill-link { width: 44px; padding: 0; justify-content: center; }
+  .pill-link .pill-text { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+}
 
 /* ---------- 標題上方的小字（細線＋等寬字） ---------- */
 .eyebrow {
@@ -281,6 +289,7 @@ input[type="text"]:focus, input[type="date"]:focus, select:focus, textarea:focus
   transition: transform 0.2s var(--ease);
 }
 .message-link:hover::after { transform: translateX(2px); }
+@media (pointer: coarse) { .message-link { min-height: 44px; } }
 
 /* ---------- 空狀態（細線圖示＋一句說明） ---------- */
 .empty-state {

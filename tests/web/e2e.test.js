@@ -544,6 +544,67 @@ async function api(route) {
   pg = await openAs(U.app, PAGE);
   ok(await pg.locator('#dash-link').isHidden(), 'applicant has no 管理看板 link');
   await pg.context().close();
+
+  // ---------- 響應式（RWD）：從小手機到大螢幕，每個畫面都不能橫向捲動或超出畫面 ----------
+  // 用「所有角色＋很長的名字」的帳號，讓頂部列與分頁處在最擠的情況
+  const RWD = 'aaaaaaaa-0000-4000-8000-000000000007';
+  await pool.query(`insert into auth.users values ('${RWD}');
+    insert into public.profiles (id, line_user_id, display_name, active, is_admin, is_issuer, is_dcc)
+      values ('${RWD}', 'U${'8'.repeat(32)}', '示範很長名字的系統管理員', true, true, true, true);
+    update public.departments set manager_id = '${RWD}' where name = '採購課';`);
+  async function openAt(uid, url, width, sel) {
+    const phone = width < 768;   // 手機寬度模擬觸控（pointer: coarse）
+    const c = await b3.newContext({ viewport: { width, height: phone ? 760 : 900 }, isMobile: phone, hasTouch: phone, deviceScaleFactor: 1, ...RM });
+    await c.route('https://static.line-scdn.net/**', r => r.fulfill({ contentType: 'application/javascript', body:
+      `window.liff={init:async()=>{},isLoggedIn:()=>true,login:()=>{},logout:()=>{},getIDToken:()=>'fake.id.token-for-testing',getDecodedIDToken:()=>({sub:'U'+'7'.repeat(32)})};` }));
+    await c.route('https://cdn.jsdelivr.net/**', r => r.fulfill({ body: UMD, contentType: 'application/javascript' }));
+    await c.route(SB + '/**', api);
+    global.CURRENT = uid;
+    const p = await c.newPage();
+    p.on('pageerror', e => ok(false, 'page error ' + e));
+    await p.goto(url);
+    await p.waitForSelector(sel);
+    return p;
+  }
+  // 回傳版面問題：橫向捲動、超出畫面的元素、觸控裝置上小於 44px 的點擊目標
+  const layoutIssues = () => {
+    const vw = document.documentElement.clientWidth, out = [];
+    const name = el => el.tagName.toLowerCase() + (el.id ? '#' + el.id : '') + (typeof el.className === 'string' && el.className ? '.' + el.className.trim().split(/\s+/).join('.') : '');
+    if (Math.max(document.documentElement.scrollWidth, document.body.scrollWidth) > vw + 1) out.push('horizontal scroll ' + document.documentElement.scrollWidth + ' > ' + vw);
+    for (const el of document.querySelectorAll('body *')) {
+      if (el.closest('.table-scroll, .tabs, .seg, .tooltip')) continue;   // 這些容器本來就可以在內部左右捲動
+      const r = el.getBoundingClientRect();
+      if (!r.width || !r.height) continue;
+      if (r.right > vw + 1 || r.left < -1) out.push('overflow ' + name(el) + ' ' + Math.round(r.left) + '..' + Math.round(r.right));
+    }
+    if (matchMedia('(pointer: coarse)').matches) {
+      for (const el of document.querySelectorAll('button, a, select, input:not([type=checkbox]), summary, .chip span')) {
+        const r = el.getBoundingClientRect();
+        if (!r.width || !r.height) continue;
+        if (r.height < 43.5) out.push('tap target ' + name(el) + ' ' + Math.round(r.height) + 'px');
+      }
+    }
+    return out.slice(0, 6);
+  };
+  const VIEWS = [
+    ['new', RWD, PAGE, '#view-new:not([hidden])'],
+    ['mine', U.app, PAGE + '?tab=mine', '#mine-list .request-item'],
+    ['review', RWD, PAGE + '?tab=review', '#view-review:not([hidden]) :is(.request-item, .empty-state)'],
+    ['issue', RWD, PAGE + '?tab=issue', '#view-issue:not([hidden]) :is(.request-item, .empty-state)'],
+    ['dash', RWD, PAGE + 'dashboard.html', '#tiles .tile'],
+  ];
+  for (const w of [320, 375, 414, 768, 1024, 1280, 1440]) {
+    for (const [view, uid, url, sel] of VIEWS) {
+      const p = await openAt(uid, url, w, sel);
+      if (view === 'mine') { await p.click('#mine-list .item-head'); await p.waitForSelector('#mine-list .timeline'); }
+      if (view === 'review' && await p.locator('#review-list .reject').count()) await p.click('#review-list .reject');
+      if (view === 'dash') await p.click('#filters [data-preset="custom"]');   // 顯示「套用」鍵，篩選列最寬的情況
+      const issues = await p.evaluate(layoutIssues);
+      ok(!issues.length, `rwd ${w}px ${view}` + (issues.length ? '：' + issues.join('；') : ''));
+      if (process.env.SHOT_DIR) await p.screenshot({ path: `${process.env.SHOT_DIR}/rwd-${view}-${w}.png`, fullPage: true });
+      await p.context().close();
+    }
+  }
   await b3.close();
   await pool.end(); server.close();
 })().catch(e => { console.error(e); process.exit(1); });

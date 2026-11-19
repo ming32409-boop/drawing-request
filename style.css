@@ -34,6 +34,8 @@
   font-size: 0.6875rem; font-weight: 600; line-height: 20px; text-align: center;
 }
 @media (max-width: 380px) { .tabs a { padding: 0 8px; font-size: 0.875rem; } .tabs a::after { left: 8px; right: 8px; } }
+/* 最窄的手機（320～360px）：四個分頁加待辦數字也要放得下 */
+@media (max-width: 360px) { .tabs { gap: 2px; } .tabs a { padding: 0 6px; font-size: 0.8125rem; } .tabs a::after { left: 6px; right: 6px; } }
 
 /* ---------- 版面 ---------- */
 main {
@@ -167,7 +169,12 @@ label, legend {
 .item-top .doc-no { grid-area: 1 / 1; }
 .item-top .badge.status { grid-area: 1 / 2; }
 .item-top .external-badge { grid-area: 2 / 1; justify-self: start; }
-.doc-no { font-family: var(--mono); font-size: var(--fs-label); font-weight: 600; letter-spacing: 0; color: var(--ink); }
+.doc-no { font-family: var(--mono); font-size: var(--fs-label); font-weight: 600; letter-spacing: 0; color: var(--ink); white-space: nowrap; }
+/* 很窄的手機：單號自己一行，標籤排在下一行（單號不會被拆開） */
+@media (max-width: 374px) {
+  .item-top { display: flex; flex-wrap: wrap; gap: 6px; }
+  .item-top .doc-no { flex-basis: 100%; }
+}
 .item-summary { margin-top: 10px; font-size: var(--fs-body); font-weight: 500; word-break: break-word; }
 .item-meta-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 2px; }
 .item-meta { color: var(--ink-3); font-size: var(--fs-small); }
@@ -183,21 +190,43 @@ label, legend {
 .item-head:hover .chev { background: var(--surface-2); }
 .item-head[aria-expanded="true"] .chev { transform: rotate(180deg); }
 
-/* 進度：四段細條（送出 → 部門主管 → 核發主管 → 文管發放） */
-.progress { list-style: none; margin: 16px 0 0; padding: 0; display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; }
+/* 進度：圓點＋連線（送出 → 部門主管 → 核發主管 → 文管發放） */
+:root {
+  --step-check: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%23ffffff' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 8.4l2.6 2.6L12 5.4'/%3E%3C/svg%3E");
+  --step-x: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%23ffffff' stroke-width='2.4' stroke-linecap='round'%3E%3Cpath d='M5 5l6 6M11 5l-6 6'/%3E%3C/svg%3E");
+}
+@media (prefers-color-scheme: dark) {
+  :root:where(:not([data-theme="light"])) {
+    --step-check: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%230f1a2c' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 8.4l2.6 2.6L12 5.4'/%3E%3C/svg%3E");
+    --step-x: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%23391f1e' stroke-width='2.4' stroke-linecap='round'%3E%3Cpath d='M5 5l6 6M11 5l-6 6'/%3E%3C/svg%3E");
+  }
+}
+:root[data-theme="dark"] {
+  --step-check: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%230f1a2c' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 8.4l2.6 2.6L12 5.4'/%3E%3C/svg%3E");
+  --step-x: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%23391f1e' stroke-width='2.4' stroke-linecap='round'%3E%3Cpath d='M5 5l6 6M11 5l-6 6'/%3E%3C/svg%3E");
+}
+.progress { list-style: none; margin: 18px 0 2px; padding: 0; display: grid; grid-template-columns: repeat(4, 1fr); }
 .progress li {
-  position: relative; padding-top: 12px; min-width: 0;
+  position: relative; min-width: 0; padding-top: 26px; text-align: center;
   font-size: var(--fs-label-sm); color: var(--ink-3); line-height: 1.3;
 }
-.progress li::before {
-  content: ""; position: absolute; top: 0; left: 0; right: 0; height: 4px; border-radius: 2px; background: var(--surface-3);
+.progress li::before {              /* 與前一個圓點之間的連線（兩端留一點空隙） */
+  content: ""; position: absolute; top: 8px; left: calc(-50% + 14px); right: calc(50% + 14px);
+  height: 2px; border-radius: 2px; background: var(--line-strong);
 }
-.progress li.done { color: var(--ink-2); }
-.progress li.done::before { background: var(--primary); }
-.progress li.current { color: var(--ink); font-weight: 600; }
-.progress li.current::before { background: linear-gradient(90deg, var(--primary) 0 50%, var(--surface-3) 50%); }  /* 進行中：半段 */
+.progress li:first-child::before { display: none; }
+.progress li::after {               /* 圓點 */
+  content: ""; position: absolute; top: 0; left: 50%; width: 18px; height: 18px; margin-left: -9px;
+  border-radius: 50%; background: var(--surface) center / 12px no-repeat; box-shadow: inset 0 0 0 1.5px var(--field);
+}
+.progress li.done, .progress li.current { color: var(--ink); }
+.progress li.done::before, .progress li.current::before, .progress li.rejected::before { background: var(--primary); }
+.progress li.done::after { background-color: var(--primary); background-image: var(--step-check); box-shadow: none; }
+.progress li.current { font-weight: 600; }
+.progress li.current::after { box-shadow: inset 0 0 0 2px var(--primary), 0 0 0 4px var(--ring); }
+.progress li.current::after { background-image: radial-gradient(circle, var(--primary) 0 3px, transparent 3.5px); background-size: 100% 100%; }
 .progress li.rejected { color: var(--danger); font-weight: 600; }
-.progress li.rejected::before { background: var(--danger); }
+.progress li.rejected::after { background-color: var(--danger); background-image: var(--step-x); box-shadow: none; }
 
 /* 展開的明細：像圖面標題欄，一列一個欄位，細線分隔 */
 .item-detail { padding: 4px 18px 18px; background: var(--surface-2); border-top: 1px solid var(--line); animation: fade 0.3s var(--ease) both; }

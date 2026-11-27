@@ -355,3 +355,27 @@ button.message-link::after { display: none; }   /* 按鈕是就地動作，不�
   .sheet-backdrop { align-items: center; padding: 24px; }
   .sheet { border-radius: var(--r-lg); padding-bottom: 18px; }
 }
+
+/* ---------- 複製按鈕：按下後圖示變打勾 ---------- */
+.copy-btn {
+  display: inline-flex; align-items: center; gap: 5px; vertical-align: middle; flex: none;
+  min-height: 30px; margin-left: 8px; padding: 0 9px; border-radius: var(--r-sm);
+  border: 1px solid var(--line-strong); background: var(--surface); color: var(--ink-2);
+  font-family: var(--font); font-size: var(--fs-label-sm); font-weight: 600; letter-spacing: 0.02em; white-space: nowrap;
+  transition: border-color 0.2s var(--ease), color 0.2s var(--ease), background-color 0.2s var(--ease);
+}
+.copy-btn:hover { border-color: var(--field); color: var(--ink); }
+.copy-icon {
+  width: 13px; height: 13px; flex: none; background-color: currentColor;
+  -webkit-mask: var(--i-copy) center / contain no-repeat; mask: var(--i-copy) center / contain no-repeat;
+}
+.copy-btn.is-copied { border-color: var(--ok); color: var(--ok); background: var(--ok-bg); }
+.copy-btn.is-copied .copy-icon {
+  -webkit-mask-image: var(--i-check); mask-image: var(--i-check); animation: pop 0.32s var(--ease) both;
+}
+.copy-btn.is-failed { border-color: var(--warn); color: var(--warn); background: var(--warn-bg); }
+@keyframes pop { 0% { transform: scale(0.4); opacity: 0; } 60% { transform: scale(1.18); opacity: 1; } 100% { transform: none; } }
+@media (pointer: coarse) { .copy-btn { min-height: 44px; padding: 0 12px; } }
+.visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+:root { --i-copy: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%23000' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='5.5' y='5.5' width='8' height='8' rx='1.5'/%3E%3Cpath d='M10.5 5.5V3.5a1 1 0 0 0-1-1h-6a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2'/%3E%3C/svg%3E");
+        --i-plane: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%23000' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M14 2L7 9M14 2l-4.5 12-2.5-5-5-2.5z'/%3E%3C/svg%3E"); }

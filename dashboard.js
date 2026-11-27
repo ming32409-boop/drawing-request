@@ -320,8 +320,26 @@
     return /[",\r\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
   }
 
+  // 匯出按鈕狀態：busy＝轉圈（取資料中）→ done＝圈補滿變打勾 1.8 秒 → 回到原狀
+  var exportLabel = exportBtn.querySelector(".btn-label");
+  var exportTimer = null;
+  function exportState(state) {
+    clearTimeout(exportTimer);
+    exportBtn.classList.remove("is-busy", "is-done");
+    exportBtn.setAttribute("aria-busy", String(state === "busy"));
+    if (state === "busy") { exportBtn.classList.add("is-busy"); exportLabel.textContent = "匯出中…"; }
+    else if (state === "done") {
+      exportBtn.classList.add("is-done");
+      exportLabel.textContent = "已匯出";
+      exportTimer = setTimeout(function () { exportState(null); }, 1800);
+    } else exportLabel.textContent = "匯出 Excel";
+  }
+
   async function exportCsv() {
+    if (exportBtn.classList.contains("is-busy")) return;
     exportBtn.disabled = true;
+    exportState("busy");
+    var done = false;
     try {
       var range = rangeFor(preset);
       var res = await client.rpc("export_requests", { p_from: range[0] || null, p_to: range[1] || null });
@@ -345,10 +363,13 @@
       a.click();
       setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
       C.showMessage(msgEl, "success", "已匯出 " + res.data.length + " 筆。若在 LINE 裡無法下載，請改用電腦瀏覽器開啟本頁。");
+      done = true;
+      exportState("done");
     } catch (err) {
       C.showMessage(msgEl, "error", "匯出失敗：" + C.describeError(err));
     } finally {
       exportBtn.disabled = false;
+      if (!done) exportState(null);
     }
   }
 

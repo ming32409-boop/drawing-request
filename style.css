@@ -534,3 +534,28 @@ label, legend {
 .product-import { width: 100%; margin-top: 14px; }
 #product-message { margin-top: 12px; }
 @media (max-width: 400px) { .subtabs button { font-size: 0.8125rem; padding: 0 4px; } }
+
+/* ---------- 送出成功：紙飛機飛出，接著出現打勾 ---------- */
+.form-actions .primary { position: relative; overflow: hidden; }
+.form-actions .primary.is-sent::after {
+  -webkit-mask-image: var(--i-check); mask-image: var(--i-check);
+  animation: pop 0.32s var(--ease) 0.5s both;
+}
+.form-actions .primary.is-sent::before {          /* 飛走的紙飛機 */
+  content: ""; position: absolute; left: calc(50% + 24px); top: 50%; width: 18px; height: 18px; margin-top: -9px;
+  background-color: currentColor; pointer-events: none;
+  -webkit-mask: var(--i-plane) center / contain no-repeat; mask: var(--i-plane) center / contain no-repeat;
+  animation: plane-fly 0.6s cubic-bezier(0.5, 0, 0.75, 0) both;
+}
+@keyframes plane-fly {
+  0% { transform: none; opacity: 1; }
+  25% { transform: translate(-3px, 2px); }
+  100% { transform: translate(150px, -46px) rotate(-12deg) scale(0.75); opacity: 0; }
+}
+/* 送出成功訊息裡的複製單號 */
+#form-message .copy-btn { align-self: center; }
+/* 明細裡的單號列 */
+.doc-row { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
+.doc-row .copy-btn, .delivery-note .copy-btn { margin-left: 0; }
+.delivery-note { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; }
+@media (prefers-reduced-motion: reduce) { .form-actions .primary.is-sent::before { display: none; } }

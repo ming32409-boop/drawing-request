@@ -196,10 +196,60 @@
       });
       return btn;
     },
-    // 品號第一筆＋另幾筆
-    itemsSummary: function (items) {
-      var lines = String(items || "").split("\n").filter(function (l) { return l.trim(); });
+    // 逐筆品項（新申請有 request_items；舊申請只有「品號/名稱」文字）
+    itemRows: function (r) {
+      var rows = r && (r.request_items || r.item_list);
+      if (rows && rows.length) return rows.slice().sort(function (a, b) { return a.seq - b.seq; });
+      return null;
+    },
+    // 第一筆＋另幾筆（卡片摘要用）。傳入申請單，或舊的品項文字
+    itemsSummary: function (r) {
+      var rows = typeof r === "object" ? this.itemRows(r) : null;
+      if (rows) return rows[0].code + "　" + rows[0].name + (rows.length > 1 ? "（另 " + (rows.length - 1) + " 筆）" : "");
+      var lines = String(typeof r === "object" ? r.items : r || "").split("\n").filter(function (l) { return l.trim(); });
       return (lines[0] || "") + (lines.length > 1 ? "（另 " + (lines.length - 1) + " 筆）" : "");
+    },
+    // 逐筆品項表：品號、品名／規格、備註；手動輸入的品號加上標示。舊申請顯示原本的文字
+    itemTable: function (r) {
+      var rows = this.itemRows(r);
+      if (!rows) {
+        var pre = document.createElement("pre");
+        pre.className = "items-full";
+        pre.textContent = r.items || "";
+        return pre;
+      }
+      var ol = document.createElement("ol");
+      ol.className = "item-table";
+      ol.setAttribute("aria-label", "產品明細，共 " + rows.length + " 筆");
+      rows.forEach(function (x, k) {
+        var li = document.createElement("li");
+        var seq = document.createElement("span");
+        seq.className = "it-seq";
+        seq.textContent = String(k + 1);
+        var code = document.createElement("span");
+        code.className = "it-code";
+        code.textContent = x.code;
+        if (!x.from_master) {
+          var tag = document.createElement("span");
+          tag.className = "item-src is-manual";
+          tag.textContent = "手動輸入";
+          code.appendChild(tag);
+        }
+        var name = document.createElement("span");
+        name.className = "it-name";
+        name.textContent = x.name;
+        li.appendChild(seq);
+        li.appendChild(code);
+        li.appendChild(name);
+        if (x.note) {
+          var note = document.createElement("span");
+          note.className = "it-note";
+          note.textContent = "備註：" + x.note;
+          li.appendChild(note);
+        }
+        ol.appendChild(li);
+      });
+      return ol;
     },
     // ---------- 急迫度：已等多久、離需要日期還有幾天 ----------
     // since：這一關開始等的時間（第一關＝送出、第二關＝第一關核准、發放＝第二關核准）

@@ -11,8 +11,8 @@
   <meta property="og:description" content="開發部圖面資料申請與簽核：點開後用 LINE 登入即可申請、簽核或查看進度。">
   <meta property="og:type" content="website">
   <link rel="icon" type="image/svg+xml" href="icon.svg">
-  <link rel="stylesheet" href="theme.css?v=20">
-  <link rel="stylesheet" href="style.css?v=20">
+  <link rel="stylesheet" href="theme.css?v=21">
+  <link rel="stylesheet" href="style.css?v=21">
 </head>
 <body>
   <header class="app-bar">
@@ -105,16 +105,15 @@
             <p class="field-error" data-for="data_types"></p>
           </fieldset>
 
-          <div class="field">
-            <label for="items">品號／零件名稱／規格 <span class="req" aria-hidden="true">*</span></label>
-            <textarea id="items" name="items" rows="4" maxlength="3000" required
-                      placeholder="一行一筆，例如：&#10;AB-CD-123456-1/示範固定座φ20x40mm"></textarea>
-            <div class="hint-row">
-              <p class="hint-text">一行一筆，格式：品號/零件名稱與規格（中間要有斜線）。版次請寫在名稱裡，例如 Rev.C。</p>
+          <div class="field items-field" role="group" aria-labelledby="items-label">
+            <div class="items-head">
+              <span class="items-label" id="items-label">產品明細 <span class="req" aria-hidden="true">*</span></span>
               <span id="items-count" class="items-count" aria-live="polite"></span>
             </div>
+            <p class="hint-text items-hint">用「搜尋產品」從產品主檔帶入品號與品名／規格；找不到時直接手動輸入。每張最多 10 筆，同一張不能重複（英文大小寫視為不同）。</p>
+            <ol id="item-list" class="item-list"></ol>
+            <button type="button" id="item-add" class="secondary add-item">＋ 新增一筆產品</button>
             <p class="field-error" data-for="items"></p>
-            <p class="field-warn" id="items-warn" aria-live="polite"></p>
           </div>
         </div>
 
@@ -249,6 +248,7 @@
       <div class="subtabs" role="tablist" aria-label="管理項目">
         <button type="button" role="tab" id="admin-tab-users" aria-controls="admin-users" aria-selected="true">帳號與角色</button>
         <button type="button" role="tab" id="admin-tab-depts" aria-controls="admin-depts" aria-selected="false">部門與主管</button>
+        <button type="button" role="tab" id="admin-tab-products" aria-controls="admin-products" aria-selected="false">產品主檔</button>
       </div>
       <div id="admin-message" class="message" role="status" aria-live="polite" hidden></div>
 
@@ -282,20 +282,44 @@
           <p class="field-error" id="admin-dept-error"></p>
         </form>
       </div>
+
+      <div id="admin-products" role="tabpanel" aria-labelledby="admin-tab-products" hidden>
+        <div class="admin-block">
+          <h3 class="block-title">產品主檔</h3>
+          <p id="product-summary" class="product-summary"></p>
+          <p class="hint-text">同仁填申請時可以搜尋這份清單。從 ERP 匯出產品資料、另存成 CSV（Excel 建議選「CSV UTF-8」），再在這裡上傳。需要的欄位：<b>產品代碼</b>、<b>品名</b>；可選：規格、產品分類、類別名稱。售價、庫存等其他欄位不會匯入。</p>
+        </div>
+        <div class="admin-block">
+          <h3 class="block-title">上傳更新</h3>
+          <label for="product-file">選擇 CSV 檔</label>
+          <input type="file" id="product-file" accept=".csv,text/csv">
+          <div id="product-preview" class="product-preview" hidden></div>
+          <label class="switch-row compact product-opt">
+            <span class="switch-text">
+              <span class="switch-title">停用不在這份檔案裡的產品</span>
+              <span class="switch-desc">上傳的是完整清單時再開啟。停用的產品搜尋不到，但舊申請不受影響；之後再匯入就會恢復。</span>
+            </span>
+            <input type="checkbox" class="switch" role="switch" id="product-deactivate">
+          </label>
+          <button type="button" id="product-import" class="primary product-import" disabled>匯入產品主檔</button>
+          <div id="product-message" class="message" role="status" aria-live="polite" hidden></div>
+        </div>
+      </div>
     </section>
   </main>
 
   <script src="https://static.line-scdn.net/liff/edge/2/sdk.js" charset="utf-8"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
-  <script src="config.js?v=20"></script>
-  <script src="auth.js?v=20"></script>
-  <script src="common.js?v=20"></script>
-  <script src="form.js?v=20"></script>
-  <script src="mine.js?v=20"></script>
-  <script src="review.js?v=20"></script>
-  <script src="issue.js?v=20"></script>
-  <script src="search.js?v=20"></script>
-  <script src="admin.js?v=20"></script>
-  <script src="app.js?v=20"></script>
+  <script src="config.js?v=21"></script>
+  <script src="auth.js?v=21"></script>
+  <script src="common.js?v=21"></script>
+  <script src="items.js?v=21"></script>
+  <script src="form.js?v=21"></script>
+  <script src="mine.js?v=21"></script>
+  <script src="review.js?v=21"></script>
+  <script src="issue.js?v=21"></script>
+  <script src="search.js?v=21"></script>
+  <script src="admin.js?v=21"></script>
+  <script src="app.js?v=21"></script>
 </body>
 </html>

@@ -117,6 +117,7 @@ where display_name = '你的 LINE 名稱';
 - 申請頁在電腦上會改成「左欄區段標題、右欄欄位」；看板的重點數字是一條細線格，第一格（申請總數）放大。
 - 英數字使用 Geist 字型（`fonts/geist-latin.woff2`，SIL Open Font License，授權見 `fonts/LICENSE-Geist.txt`）；中文使用裝置的系統字型，等寬字使用系統的 `ui-monospace`。
 - 動畫只使用 `transform` 與 `opacity`；使用者設定「減少動態效果」時會自動關閉。
+- 小互動：單號與發放連結旁有「複製」按鈕（按下變打勾；LINE 內建瀏覽器不支援時退回舊的複製方式）；送出成功時送出鍵的紙飛機飛出後變打勾；看板「匯出 Excel」匯出中轉圈、完成時補滿變打勾。
 - 修改樣式或程式後，請把 `index.html`、`dashboard.html` 裡的 `?v=數字` 加 1，手機上的 LINE 才會讀到新版。
 
 ## 本機預覽

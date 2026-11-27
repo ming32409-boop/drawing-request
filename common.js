@@ -173,6 +173,63 @@
         document.addEventListener("keydown", onKey, true);
       });
     },
+    // ---------- 複製按鈕：按一下複製文字，圖示變成打勾 1.6 秒 ----------
+    // label：按鈕文字（例如「複製單號」）；螢幕報讀器會聽到「已複製」
+    copyButton: function (text, label) {
+      var btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "copy-btn";
+      btn.setAttribute("aria-label", label + "：" + text);
+      var icon = document.createElement("span");
+      icon.className = "copy-icon";
+      icon.setAttribute("aria-hidden", "true");
+      var word = document.createElement("span");
+      word.className = "copy-word";
+      word.textContent = label;
+      var live = document.createElement("span");
+      live.className = "visually-hidden";
+      live.setAttribute("aria-live", "polite");
+      btn.appendChild(icon);
+      btn.appendChild(word);
+      btn.appendChild(live);
+      var timer = null;
+      btn.addEventListener("click", function (e) {
+        e.stopPropagation();   // 卡片標題本身也是按鈕：不要順便展開／收起
+        window.Common.copyText(text).then(function (ok) {
+          clearTimeout(timer);
+          btn.classList.toggle("is-copied", ok);
+          btn.classList.toggle("is-failed", !ok);
+          word.textContent = ok ? "已複製" : "請長按選取";
+          live.textContent = ok ? "已複製 " + text : "無法自動複製，請長按文字選取";
+          timer = setTimeout(function () {
+            btn.classList.remove("is-copied", "is-failed");
+            word.textContent = label;
+            live.textContent = "";
+          }, 1600);
+        });
+      });
+      return btn;
+    },
+    // 複製到剪貼簿；新版瀏覽器用 clipboard API，不支援時（部分 LINE 內建瀏覽器）退回舊方法
+    copyText: function (text) {
+      if (navigator.clipboard && window.isSecureContext) {
+        return navigator.clipboard.writeText(text).then(function () { return true; }, function () { return fallback(); });
+      }
+      return Promise.resolve(fallback());
+      function fallback() {
+        var ta = document.createElement("textarea");
+        ta.value = text;
+        ta.setAttribute("readonly", "");
+        ta.style.position = "fixed";
+        ta.style.opacity = "0";
+        document.body.appendChild(ta);
+        ta.select();
+        var ok = false;
+        try { ok = document.execCommand("copy"); } catch (e) { ok = false; }
+        ta.remove();
+        return ok;
+      }
+    },
     // 「明細」展開鈕：卡片預設只顯示摘要與動作，按下才展開完整明細
     detailToggle: function (panel, id) {
       var btn = document.createElement("button");

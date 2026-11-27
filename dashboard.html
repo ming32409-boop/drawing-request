@@ -10,8 +10,8 @@
   <meta property="og:title" content="管理看板｜圖面資料申請">
   <meta property="og:description" content="申請趨勢、處理速度、外部用途、常用品號、駁回分析。需以 LINE 登入，限核發主管、文管與系統管理員。">
   <link rel="icon" type="image/svg+xml" href="icon.svg">
-  <link rel="stylesheet" href="theme.css?v=21">
-  <link rel="stylesheet" href="dashboard.css?v=21">
+  <link rel="stylesheet" href="theme.css?v=22">
+  <link rel="stylesheet" href="dashboard.css?v=22">
 </head>
 <body>
   <div class="viz-root">
@@ -67,9 +67,13 @@
                 <input type="date" id="to" aria-label="迄日">
                 <button type="submit" id="apply-btn" class="secondary small" hidden>套用</button>
               </div>
-              <button type="button" id="export-btn" class="primary small">
-                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 2.5v8M4.8 7.5L8 10.7l3.2-3.2M3 13.5h10"/></svg>
-                匯出 Excel
+              <button type="button" id="export-btn" class="primary small export-btn">
+                <span class="export-icon" aria-hidden="true">
+                  <svg class="dl" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2.5v8M4.8 7.5L8 10.7l3.2-3.2M3 13.5h10"/></svg>
+                  <svg class="ring" viewBox="0 0 20 20"><circle class="ring-track" cx="10" cy="10" r="8"/><circle class="ring-arc" cx="10" cy="10" r="8"/></svg>
+                  <svg class="ok" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8.4l2.6 2.6L12 5.4"/></svg>
+                </span>
+                <span class="btn-label">匯出 Excel</span>
               </button>
             </div>
           </form>
@@ -146,9 +150,9 @@
 
   <script src="https://static.line-scdn.net/liff/edge/2/sdk.js" charset="utf-8"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
-  <script src="config.js?v=21"></script>
-  <script src="auth.js?v=21"></script>
-  <script src="common.js?v=21"></script>
-  <script src="dashboard.js?v=21"></script>
+  <script src="config.js?v=22"></script>
+  <script src="auth.js?v=22"></script>
+  <script src="common.js?v=22"></script>
+  <script src="dashboard.js?v=22"></script>
 </body>
 </html>

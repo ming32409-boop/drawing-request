@@ -194,6 +194,7 @@ async function api(route) {
   }
   const b = await chromium.launch();
   const ctx = await b.newContext({ ...devices['iPhone 13'], ...RM });
+  await ctx.grantPermissions(['clipboard-read', 'clipboard-write'], { origin: PAGE.replace(/\/$/, '') });
   await ctx.route('https://static.line-scdn.net/**', r => r.fulfill({ contentType: 'application/javascript', body:
     `window.liff={init:async()=>{},isLoggedIn:()=>true,login:()=>{},logout:()=>{},getIDToken:()=>'fake.id.token-for-testing',getDecodedIDToken:()=>({sub:'U'+'9'.repeat(32)})};` }));
   await ctx.route('https://cdn.jsdelivr.net/**', r => r.fulfill({ body: UMD, contentType: 'application/javascript' }));
@@ -290,6 +291,14 @@ async function api(route) {
   const doc1 = (msg.match(/DOC-\d{8}-\d{3}/) || [])[0];
   ok(!!doc1, 'submits and shows doc number: ' + msg);
   ok(await p.getAttribute('#form-message .message-link', 'href') === '#mine', 'success message links to 我的申請');
+  ok((await p.getAttribute('#submit-btn', 'class')).includes('is-sent') && (await p.textContent('#submit-btn')) === '已送出', 'submit button shows sent state');
+  await p.waitForFunction(() => document.getElementById('submit-btn').textContent === '送出申請');
+  ok(!(await p.getAttribute('#submit-btn', 'class')).includes('is-sent'), 'submit button returns to normal');
+  await p.click('#form-message .copy-btn');
+  await p.waitForFunction(() => document.querySelector('#form-message .copy-btn').classList.contains('is-copied'));
+  ok((await p.textContent('#form-message .copy-btn .copy-word')) === '已複製' && (await p.evaluate(() => navigator.clipboard.readText())) === doc1,
+     'copy button copies the doc number');
+  if (process.env.SHOT_DIR) await p.locator('.form-actions').screenshot({ path: process.env.SHOT_DIR + '/copy-doc.png' });
   if (process.env.SHOT_DIR) await p.locator('.form-actions').screenshot({ path: process.env.SHOT_DIR + '/e-success.png' });
   const row = (await pool.query('select * from public.requests where doc_no = $1', [doc1])).rows[0];
   ok(row && row.status === '申請主管簽核中' && row.is_external && row.data_types.join() === '圖面,材質證明' && row.applicant_id === U.app && row.need_date.toISOString && row.items.split('\n').length === 2, 'DB row correct');
@@ -410,6 +419,7 @@ async function api(route) {
   const b3 = await chromium.launch();
   async function openAs(uid, url) {
     const c = await b3.newContext({ ...devices['iPhone 13'], ...RM });
+    await c.grantPermissions(['clipboard-read', 'clipboard-write'], { origin: PAGE.replace(/\/$/, '') });
     await c.route('https://static.line-scdn.net/**', r => r.fulfill({ contentType: 'application/javascript', body:
       `window.liff={init:async()=>{},isLoggedIn:()=>true,login:()=>{},logout:()=>{},getIDToken:()=>'fake.id.token-for-testing',getDecodedIDToken:()=>({sub:'U'+'7'.repeat(32)})};` }));
     await c.route('https://cdn.jsdelivr.net/**', r => r.fulfill({ body: UMD, contentType: 'application/javascript' }));
@@ -646,6 +656,13 @@ async function api(route) {
   const it3M = pg.locator('.request-item', { hasText: 'RV-0003' });
   await it3M.locator('.item-head').click();
   ok(await it3M.locator('.delivery-note a.text-link').getAttribute('href') === 'https://drive.example.invalid/rv3', 'applicant gets a clickable cloud link');
+  await it3M.locator('.delivery-note .copy-btn').click();
+  await pg.waitForFunction(() => document.querySelector('.delivery-note .copy-btn.is-copied'));
+  ok((await pg.evaluate(() => navigator.clipboard.readText())) === 'https://drive.example.invalid/rv3' && await it3M.locator('.item-head[aria-expanded="true"]').count() === 1,
+     'copy link copies the URL without collapsing the card');
+  await it3M.locator('.doc-row .copy-btn').click();
+  await pg.waitForFunction(() => document.querySelector('.doc-row .copy-btn.is-copied'));
+  ok(/^DOC-\d{8}-\d{3}$/.test(await pg.evaluate(() => navigator.clipboard.readText())), 'copy doc number in detail');
   await pg.context().close();
 
   // ===== 第 9 步：管理看板 =====
@@ -730,6 +747,11 @@ async function api(route) {
   const allN = (await pool.query('select count(*)::int n from public.requests')).rows[0].n;
   ok(csv.charCodeAt(0) === 0xfeff && csv.split('\r\n')[0].startsWith('\ufeff單號,申請時間,申請人'), 'CSV has BOM + Chinese headers');
   ok(csv.split('\r\n').length === allN + 1, 'CSV has all rows (' + allN + ')');
+  await pg.waitForFunction(() => document.getElementById('export-btn').classList.contains('is-done'));
+  ok((await pg.textContent('#export-btn .btn-label')) === '已匯出', 'export button shows done state');
+  if (process.env.SHOT_DIR) await pg.locator('#export-btn').screenshot({ path: process.env.SHOT_DIR + '/export-done.png' });
+  await pg.waitForFunction(() => document.querySelector('#export-btn .btn-label').textContent === '匯出 Excel');
+  ok(!(await pg.getAttribute('#export-btn', 'class')).includes('is-'), 'export button returns to normal');
   ok(csv.includes(",'=1+1,") && !csv.includes(",=1+1,"), 'CSV guards formula injection');
   ok(/^drawing-requests_all_\d{4}-\d{2}-\d{2}\.csv$/.test(dl.suggestedFilename()), 'download filename ' + dl.suggestedFilename());
   await pg.context().close();

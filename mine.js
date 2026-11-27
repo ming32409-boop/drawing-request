@@ -120,6 +120,12 @@
     var detail = C.el("div", "item-detail");
     detail.hidden = true;
     var dl = C.el("dl", "detail");
+    // 單號＋複製（回報問題、跟文管溝通時常要貼單號）
+    dl.appendChild(C.el("dt", null, "單號"));
+    var docDd = C.el("dd", "doc-row");
+    docDd.appendChild(C.el("span", "doc-no", r.doc_no));
+    docDd.appendChild(C.copyButton(r.doc_no, "複製"));
+    dl.appendChild(docDd);
     if (opts.showApplicant && r.applicant) row(dl, "申請人", r.applicant.display_name);
     row(dl, "所屬部門", withOther(r.department ? r.department.name : "", r.department_other));
     row(dl, "申請資料別", r.data_types.join("、"));
@@ -136,6 +142,9 @@
         dl.appendChild(C.el("dt", null, "連結／備註"));
         var dd = C.el("dd", "delivery-note");
         dd.appendChild(C.linkify(r.delivery_note));
+        // 有網址就複製網址，否則複製整段備註
+        var url = (String(r.delivery_note).match(/https?:\/\/[^\s<>"'，。、）]+/) || [])[0];
+        dd.appendChild(C.copyButton(url || r.delivery_note, url ? "複製連結" : "複製"));
         dl.appendChild(dd);
       }
       row(dl, "發放時間", C.formatTime(r.delivered_at));

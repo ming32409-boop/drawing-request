@@ -239,3 +239,21 @@ table.data td.part { white-space: nowrap; max-width: 14em; overflow: hidden; tex
 .usage.is-over .meter-fill { background: var(--danger); }
 .usage.is-over .usage-num, .usage.is-over .usage-hint { color: var(--danger); }
 @media (min-width: 960px) { .usage { padding: 16px 24px; } }
+
+/* ---------- 匯出 Excel：轉圈（匯出中）→ 補滿變打勾（已匯出） ---------- */
+.export-icon { position: relative; display: inline-grid; place-items: center; width: 18px; height: 18px; flex: none; }
+.export-icon svg { grid-area: 1 / 1; width: 16px; height: 16px; transition: opacity 0.2s var(--ease), transform 0.2s var(--ease); }
+.export-icon .ring { width: 18px; height: 18px; opacity: 0; transform: rotate(-90deg); }
+.export-icon .ok { opacity: 0; transform: scale(0.4); }
+.ring circle { fill: none; stroke-width: 2.2; }
+.ring-track { stroke: currentColor; opacity: 0.25; }
+.ring-arc { stroke: currentColor; stroke-linecap: round; stroke-dasharray: 50.3; stroke-dashoffset: 37; transition: stroke-dashoffset 0.35s var(--ease); }
+.export-btn.is-busy .dl, .export-btn.is-done .dl { opacity: 0; transform: scale(0.4); }
+.export-btn.is-busy .ring { opacity: 1; animation: ring-spin 0.9s linear infinite; }
+.export-btn.is-done .ring { opacity: 1; transform: rotate(-90deg); }
+.export-btn.is-done .ring-arc { stroke-dashoffset: 0; }
+.export-btn.is-done .ring { animation: ring-out 0.25s var(--ease) 0.35s both; }
+.export-btn.is-done .ok { opacity: 1; transform: none; transition-delay: 0.45s; }
+@keyframes ring-spin { from { transform: rotate(-90deg); } to { transform: rotate(270deg); } }
+@keyframes ring-out { to { opacity: 0; transform: rotate(-90deg) scale(1.3); } }
+.export-btn:disabled { opacity: 1; cursor: progress; }   /* 匯出中不要變淡，才看得到轉圈 */

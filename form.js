@@ -164,6 +164,7 @@
       if (target) target.scrollIntoView({ behavior: "smooth", block: "center" });
       return;
     }
+    var sent = false;
     submitBtn.disabled = true;
     submitBtn.textContent = "送出中…";
     try {
@@ -193,17 +194,26 @@
       text.appendChild(no);
       text.appendChild(document.createTextNode("。主管會收到 LINE 通知。"));
       msg.appendChild(text);
+      msg.appendChild(C.copyButton(docNo, "複製單號"));
       var link = document.createElement("a");
       link.href = "#mine";
       link.className = "message-link";
       link.textContent = "查看進度";
       msg.appendChild(link);
+      // 送出成功：紙飛機飛出、按鈕短暫顯示「已送出」
+      sent = true;
+      submitBtn.textContent = "已送出";
+      submitBtn.classList.add("is-sent");
+      setTimeout(function () {
+        submitBtn.classList.remove("is-sent");
+        submitBtn.textContent = "送出申請";
+      }, 1800);
       if (ctx.onSubmitted) ctx.onSubmitted(docNo);
     } catch (err) {
       C.showMessage(msg, "error", C.describeError(err));
     } finally {
       submitBtn.disabled = false;
-      submitBtn.textContent = "送出申請";
+      if (!sent) submitBtn.textContent = "送出申請";
     }
   }
 

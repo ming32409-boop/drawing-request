@@ -255,6 +255,60 @@ expect_err(f"select claim_request('{RC}')", U['dcc1'], '不能認領', 'cannot c
 ok(val(f"select string_agg(action, ',' order by id) from request_events where request_id='{RC}' and stage=3", U['app']) == '認領,取消認領,認領,發放', 'claim events logged')
 expect_err(f"select claim_request('{RC}')", None, 'permission denied', 'anon cannot claim', role='anon')
 
+# 產品主檔與逐筆品項（011）
+val("""insert into products (code, category, category_name, name, spec) values
+  ('FA-T1/23-2', 'FA', '模板零配件', '示範六角螺絲 W1/2', '電'),
+  ('AB-100a', 'AB', '示範類別', '示範小a零件', null),
+  ('AB-100A', 'AB', '示範類別', '示範大A零件', '黑'),
+  ('DW-001', 'DW', '示範類別', '示範槽鋼 2000', '紅丹漆'),
+  ('OLD-1', 'DW', '示範類別', '示範停用品', null);
+  update products set active = false where code = 'OLD-1';""", role=None)
+def sp(q, uid=None):
+    return val(f"select coalesce(string_agg(x->>'code', ',' order by ord), '-') from jsonb_array_elements(search_products('{q}')) with ordinality as t(x, ord)", uid or U['app'])
+ok(sp('AB-100A') == 'AB-100A,AB-100a', 'search_products: exact code (case-sensitive) first')
+ok(sp('槽鋼 2000') == 'DW-001', 'search_products: all words must match (name)')
+ok(sp('紅丹') == 'DW-001', 'search_products: matches spec')
+ok(sp('fa-t1/23') == 'FA-T1/23-2', 'search_products: code with slash, case-insensitive')
+ok(sp('OLD-1') == '-', 'search_products: inactive products hidden')
+ok(sp('%') == '-' and sp('   ') == '-', 'search_products: % literal, blank returns nothing')
+expect_err("select search_products('AB')", None, 'permission denied', 'search_products: anon denied', role='anon')
+expect_err("select * from products", None, 'permission denied', 'products: anon cannot read', role='anon')
+expect_err("insert into products (code, name) values ('X-1', 'x')", U['admin'], 'permission denied', 'products: no direct writes')
+ok(val("select product_summary()->>'total'||','||(product_summary()->>'active')", U['admin']) == '5,4', 'product_summary counts')
+
+def items_submit(uid, items_json):
+    return f"select submit_request_items({QC}::smallint, null, array['圖面'], '{items_json}'::jsonb, '設計參考', null, array['2D PDF'], null, null, null)"
+DOCI = val(items_submit(U['app'], '[{"code":"FA-T1/23-2","name":"示範六角螺絲 W1/2 電","note":"急用"},{"code":"AB-100a","name":"示範小a零件"},{"code":"AB-100A","name":"示範大A零件 黑"},{"code":"NEW-9","name":"手動新零件"}]'), U['app'])
+ok(DOCI.startswith('DOC-'), 'submit_request_items: submits ' + DOCI)
+RI = val(f"select id from requests where doc_no='{DOCI}'", role=None)
+ok(val(f"select string_agg(seq||':'||code||':'||from_master::text||':'||coalesce(note,''), '|' order by seq) from request_items where request_id='{RI}'", U['app'])
+   == '1:FA-T1/23-2:true:急用|2:AB-100a:true:|3:AB-100A:true:|4:NEW-9:false:', 'submit_request_items: items stored with master flag (case-sensitive)')
+ok(val(f"select split_part(items, E'\\n', 1) from requests where id='{RI}'", U['app']) == 'FA-T1/23-2/示範六角螺絲 W1/2 電', 'submit_request_items: items text kept for notifications')
+ok(val(f"select count(*) from request_items where request_id='{RI}'", U['admin']) == '0', 'request_items: users who cannot see the request cannot read its items')
+ok(val(f"select count(*) from request_items where request_id='{RI}'", U['qcmgr']) == '4', 'request_items: department manager can read')
+expect_err(items_submit(U['app'], '[]'), U['app'], '至少填寫 1 筆', 'submit_request_items: requires at least one item')
+eleven = '[' + ','.join(f'{{"code":"X-{i}","name":"n{i}"}}' for i in range(11)) + ']'
+expect_err(items_submit(U['app'], eleven), U['app'], '最多 10 筆', 'submit_request_items: max 10 items')
+expect_err(items_submit(U['app'], '[{"code":" ","name":"x"}]'), U['app'], '第 1 筆缺少產品編碼', 'submit_request_items: code required')
+expect_err(items_submit(U['app'], '[{"code":"A-1","name":"x"},{"code":"B-1","name":""}]'), U['app'], '第 2 筆缺少品名', 'submit_request_items: name required')
+expect_err(items_submit(U['app'], '[{"code":"A-1","name":"x"},{"code":"A-1","name":"y"}]'), U['app'], '第 2 筆與第 1 筆的產品編碼重複', 'submit_request_items: exact duplicate rejected')
+expect_err(items_submit(U['app'], '[{"code":"A-1","name":"x\\ny"}]'), U['app'], '不能有換行', 'submit_request_items: no newline')
+expect_err(items_submit(U['app'], '[{"code":"' + 'A'*41 + '","name":"x"}]'), U['app'], '最多 40 字', 'submit_request_items: code max 40')
+expect_err(items_submit(U['off'], '[{"code":"A-1","name":"x"}]').replace(str(QC), str(QC)), None, 'permission denied', 'submit_request_items: anon denied', role='anon')
+top = val("select string_agg((x->>'part')||'='||(x->>'n'), ',') from jsonb_array_elements(dashboard_data()->'top_items') x where x->>'part' in ('FA-T1/23-2','AB-100a','AB-100A')", U['devmgr'])
+ok(top is not None and 'FA-T1/23-2=1' in top and 'AB-100a=1' in top and 'AB-100A=1' in top, 'dashboard top items use request_items (slash, case-sensitive): ' + str(top))
+ok(val(f"select search_requests(p_q => '急用')->'rows'->0->'request_items'->0->>'code'", U['devmgr']) == 'FA-T1/23-2', 'search_requests: matches item note and returns items')
+
+# 匯入（系統管理員）
+rows = '[{"code":"DW-001","name":"示範槽鋼 2000 改","spec":"紅丹漆"},{"code":"DW-002","category_name":"示範類別","name":"示範新槽鋼"}]'
+expect_err(f"select import_products('{rows}')", U['app'], '只有系統管理員', 'import_products: non-admin denied')
+ok(val(f"select import_products('{rows}')->>'added'", U['admin']) == '1', 'import_products: adds new and updates existing')
+ok(val("select name from products where code='DW-001'", role=None) == '示範槽鋼 2000 改', 'import_products: updates name')
+expect_err("select deactivate_missing_products(array[]::text[])", U['admin'], '清單是空的', 'deactivate_missing_products: empty list refused')
+ok(val("select deactivate_missing_products(array['DW-001','DW-002','FA-T1/23-2'])", U['admin']) == '2', 'deactivate_missing_products: deactivates others')
+ok(sp('AB-100') == '-', 'deactivated products disappear from search')
+ok(val(f"select import_products('[{{\"code\":\"AB-100a\",\"name\":\"示範小a零件\"}}]')->>'added'", U['admin']) == '0' and sp('AB-100a') == 'AB-100a', 'reimport reactivates a product')
+
 # concurrency of doc numbers
 import concurrent.futures as cf
 with cf.ThreadPoolExecutor(8) as ex:

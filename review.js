@@ -13,6 +13,7 @@
     "applicant:profiles!requests_applicant_id_fkey(display_name)",
     "stage1_by_profile:profiles!requests_stage1_by_fkey(display_name)",
     "department:departments(name)",
+    "request_items(seq, code, name, note, from_master)",
   ].join(", ");
 
   function canReview() {
@@ -59,7 +60,7 @@
 
     // 摘要：誰申請、要什麼、急不急；動作按鈕直接可按，完整明細收在「查看明細」
     var deptName = (r.department ? r.department.name : "") + (r.department_other ? "（" + r.department_other + "）" : "");
-    box.appendChild(C.el("p", "item-summary", C.itemsSummary(r.items)));
+    box.appendChild(C.el("p", "item-summary", C.itemsSummary(r)));
     box.appendChild(C.el("p", "item-meta", (r.applicant ? r.applicant.display_name : "") + "（" + deptName + "）・" +
       (r.purpose + (r.purpose_other ? "（" + r.purpose_other + "）" : "")) + "・" + r.formats.join("、")));
     var u = C.urgency(r.status === "申請主管簽核中" ? r.created_at : (r.stage1_at || r.created_at), r.need_date);
@@ -83,7 +84,7 @@
     }
     var more = C.el("div", "card-detail");
     more.appendChild(dl);
-    more.appendChild(C.el("pre", "items-full", r.items));
+    more.appendChild(C.itemTable(r));
     box.appendChild(C.detailToggle(more, "review-detail-" + r.id));
     box.appendChild(more);
 
@@ -134,7 +135,7 @@
 
     var buttons = [approveBtn, rejectBtn, confirmReject];
     approveBtn.addEventListener("click", async function () {
-      if (!(await C.confirm({ title: "核准 " + r.doc_no + "？", body: C.itemsSummary(r.items) + "\n" +
+      if (!(await C.confirm({ title: "核准 " + r.doc_no + "？", body: C.itemsSummary(r) + "\n" +
         (r.applicant ? r.applicant.display_name : "") + "・" + r.purpose + (r.is_external ? "（外部用途）" : ""), ok: "核准" }))) return;
       act(r, true, null, buttons);
     });

@@ -12,6 +12,7 @@
     "stage1_result", "stage1_reason", "stage2_result", "stage2_reason",
     "delivery_method", "delivery_method_other", "delivery_note", "delivered_at", "claimed_at",
     "claimed_by_profile:profiles!requests_claimed_by_fkey(display_name)",
+    "request_items(seq, code, name, note, from_master)",
     "department:departments(name)",
   ].join(", ");
 
@@ -99,9 +100,7 @@
     if (r.is_external) top.appendChild(C.el("span", "badge external-badge", "外部用途"));
     top.appendChild(C.el("span", "badge status " + (C.STATUS_CLASS[r.status] || ""), r.status));
     head.appendChild(top);
-    var firstLine = r.items.split("\n")[0];
-    var more = r.items.split("\n").length - 1;
-    head.appendChild(C.el("p", "item-summary", firstLine + (more > 0 ? "（另 " + more + " 筆）" : "")));
+    head.appendChild(C.el("p", "item-summary", C.itemsSummary(r)));
     var metaRow = C.el("div", "item-meta-row");
     var who = opts.showApplicant && r.applicant
       ? r.applicant.display_name + "（" + (r.department ? r.department.name : "") + "）・" : "";
@@ -142,8 +141,7 @@
       row(dl, "發放時間", C.formatTime(r.delivered_at));
     }
     detail.appendChild(dl);
-    var itemsBox = C.el("pre", "items-full", r.items);
-    detail.appendChild(itemsBox);
+    detail.appendChild(C.itemTable(r));
     var events = C.el("div", "events");
     detail.appendChild(events);
     if (!opts.readonly && r.status === "申請主管簽核中" && r.stage1_result === "待簽核") {

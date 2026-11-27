@@ -61,6 +61,14 @@ const rpcArgs = {
     p_purpose => $1::jsonb->>'p_purpose', p_purpose_other => $1::jsonb->>'p_purpose_other',
     p_formats => array(select jsonb_array_elements_text($1::jsonb->'p_formats')), p_format_other => $1::jsonb->>'p_format_other',
     p_need_date => ($1::jsonb->>'p_need_date')::date, p_external_note => $1::jsonb->>'p_external_note'`,
+  submit_request_items: `p_department_id => ($1::jsonb->>'p_department_id')::smallint, p_department_other => $1::jsonb->>'p_department_other',
+    p_data_types => array(select jsonb_array_elements_text($1::jsonb->'p_data_types')), p_item_list => $1::jsonb->'p_item_list',
+    p_purpose => $1::jsonb->>'p_purpose', p_purpose_other => $1::jsonb->>'p_purpose_other',
+    p_formats => array(select jsonb_array_elements_text($1::jsonb->'p_formats')), p_format_other => $1::jsonb->>'p_format_other',
+    p_need_date => ($1::jsonb->>'p_need_date')::date, p_external_note => $1::jsonb->>'p_external_note'`,
+  search_products: `p_q => $1::jsonb->>'p_q', p_limit => ($1::jsonb->>'p_limit')::int`,
+  import_products: `p_rows => $1::jsonb->'p_rows'`,
+  deactivate_missing_products: `p_codes => array(select jsonb_array_elements_text($1::jsonb->'p_codes'))`,
   withdraw_request: `p_request_id => ($1::jsonb->>'p_request_id')::uuid`,
   deliver_request: `p_request_id => ($1::jsonb->>'p_request_id')::uuid, p_method => $1::jsonb->>'p_method',
     p_method_other => $1::jsonb->>'p_method_other', p_note => $1::jsonb->>'p_note'`,
@@ -123,6 +131,8 @@ async function api(route) {
       const ids = p.get('department_id') ? p.get('department_id').replace(/^in\.\(|\)$/g, '').split(',').map(Number) : null;
       return reply(await asUser(uid, `select ${REQ_COLS}, r.stage1_at, r.stage2_at, r.claimed_by, r.claimed_at,
           case when cp.id is null then null else json_build_object('display_name', cp.display_name) end as claimed_by_profile,
+          (select json_agg(json_build_object('seq', ri.seq, 'code', ri.code, 'name', ri.name, 'note', ri.note, 'from_master', ri.from_master) order by ri.seq)
+          from public.request_items ri where ri.request_id = r.id) as request_items,
           case when s2.id is null then null else json_build_object('display_name', s2.display_name) end as stage2_by_profile,
           json_build_object('display_name', ap.display_name) as applicant,
           case when s1.id is null then null else json_build_object('display_name', s1.display_name) end as stage1_by_profile,
@@ -135,7 +145,9 @@ async function api(route) {
     }
     if (u.pathname === '/rest/v1/requests') {
       return reply(await asUser(uid, `select ${REQ_COLS}, case when d.id is null then null else json_build_object('name', d.name) end as department,
-          r.claimed_at, case when cp.id is null then null else json_build_object('display_name', cp.display_name) end as claimed_by_profile
+          r.claimed_at, case when cp.id is null then null else json_build_object('display_name', cp.display_name) end as claimed_by_profile,
+          (select json_agg(json_build_object('seq', ri.seq, 'code', ri.code, 'name', ri.name, 'note', ri.note, 'from_master', ri.from_master) order by ri.seq)
+          from public.request_items ri where ri.request_id = r.id) as request_items
         from public.requests r left join public.departments d on d.id = r.department_id left join public.profiles cp on cp.id = r.claimed_by
         where r.applicant_id = $1 order by r.created_at desc limit $2`, [p.get('applicant_id').slice(3), Number(p.get('limit'))]));
     }
@@ -145,6 +157,7 @@ async function api(route) {
         from public.request_events e left join public.profiles pr on pr.id = e.actor_id where e.request_id = $1 order by e.id`, [p.get('request_id').slice(3)]));
     }
     const m = u.pathname.match(/^\/rest\/v1\/rpc\/(\w+)$/);
+    if (m && m[1] === 'product_summary') return reply((await asUser(uid, 'select public.product_summary() as v'))[0].v);
     if (m && m[1] === 'export_requests') {
       return reply(await asUser(uid, `select * from public.export_requests(p_from => ($1::jsonb->>'p_from')::date, p_to => ($1::jsonb->>'p_to')::date)`, [q.postData()]));
     }
@@ -163,6 +176,22 @@ async function api(route) {
       ($1, 'U${'1'.repeat(32)}', '示範申請人', true), ($2, 'U${'2'.repeat(32)}', '示範主管', true), ($3, 'U${'3'.repeat(32)}', '示範新人', false);
     update public.departments set manager_id = $2 where name in ('品管課', '開發部');`.replace(/\$1/g, `'${U.app}'`).replace(/\$2/g, `'${U.mgr}'`).replace(/\$3/g, `'${U.off}'`));
 
+  await pool.query(`insert into public.products (code, category, category_name, name, spec) values
+    ('AB-CD-123456-1', 'FA', '示範類別', '示範固定座', 'φ20x40mm'),
+    ('DW-001', 'DW', '示範類別', '示範槽鋼 2000', '紅丹漆'),
+    ('DW-002', 'DW', '示範類別', '示範槽鋼 3000', '紅丹漆'),
+    ('FA-T1/23-2', 'FA', '示範類別', '示範六角螺絲 W1/2', '電')`);
+  // 逐筆填寫產品：items = [[品號, 品名, 備註?], ...]
+  async function fillItems(pg, items) {
+    while (await pg.locator('#item-list .item-card').count() > 1) await pg.locator('#item-list .item-card').last().locator('.item-remove').click();
+    for (let k = 0; k < items.length; k++) {
+      if (k > 0) await pg.click('#item-add');
+      const card = pg.locator('#item-list .item-card').nth(k);
+      await card.locator('.item-code').fill(items[k][0]);
+      await card.locator('.item-name').fill(items[k][1]);
+      await card.locator('.item-note').fill(items[k][2] || '');
+    }
+  }
   const b = await chromium.launch();
   const ctx = await b.newContext({ ...devices['iPhone 13'], ...RM });
   await ctx.route('https://static.line-scdn.net/**', r => r.fulfill({ contentType: 'application/javascript', body:
@@ -202,41 +231,55 @@ async function api(route) {
   // 伺服器端錯誤：採購課沒有主管
   await p.selectOption('#department', { label: '採購課' });
   await p.check('input[value="圖面"]');
-  await p.fill('#items', 'AB-CD-000001-1/示範零件');
+  await fillItems(p, [['AB-CD-000001-1', '示範零件']]);
   await p.selectOption('#purpose', '設計參考');
   await p.check('input[value="2D PDF"]');
   await p.click('#submit-btn');
   await p.waitForSelector('#form-message.error');
   ok((await p.textContent('#form-message')).includes('尚未設定部門主管'), 'server error shown: ' + await p.textContent('#form-message'));
 
-  // 品號格式防呆：指出第幾行有錯，不呼叫後端
-  await p.fill('#items', 'AB-1 示範\n\n/只有名稱\nAB-2/\nAB-3');
-  const nRpc = calls.filter(c => c.includes('rpc')).length;
+  // 逐筆檢查：錯誤標在那一筆，不呼叫後端；完全相同的品號不能重複，大小寫不同視為不同
+  await fillItems(p, [['', '只有名稱'], ['AB-2', ''], ['AB-1', '示範甲'], ['AB-1', '示範乙'], ['ab-1', '示範丙']]);
+  const nRpc = calls.filter(c => c.includes('rpc/submit')).length;
   await p.click('#submit-btn');
-  const itemErr = await p.textContent('[data-for=items]');
-  ok(itemErr.includes('第 1 行缺少斜線') && itemErr.includes('第 3 行斜線前面缺少品號') && itemErr.includes('第 4 行斜線後面缺少名稱') && itemErr.includes('另有 1 行'),
-     'rejects_bad_item_lines with line numbers: ' + itemErr);
-  ok(calls.filter(c => c.includes('rpc')).length === nRpc, 'no RPC when item lines are invalid');
-  if (process.env.SHOT_DIR) await p.locator('#items').locator('xpath=..').screenshot({ path: process.env.SHOT_DIR + '/d-item-error.png' });
-  // 離開欄位時就提醒品號重複（大小寫視為相同），但不算錯誤
-  await p.fill('#items', 'AB-1/示範甲\nab-1/示範乙');
-  await p.locator('#items').blur();
-  await p.waitForFunction(() => document.getElementById('items-warn').textContent !== '');
-  ok((await p.textContent('#items-warn')).includes('品號重複') && (await p.textContent('#items-warn')).includes('第 1、2 行') && await p.textContent('[data-for=items]') === '',
-     'duplicate part numbers warned on blur');
-  if (process.env.SHOT_DIR) await p.locator('#items').locator('xpath=..').screenshot({ path: process.env.SHOT_DIR + '/d-item-dup.png' });
-  await p.fill('#items', 'AB-1/示範甲');
-  await p.locator('#items').blur();
-  await p.waitForTimeout(600);
-  ok(await p.textContent('#items-warn') === '', 'duplicate warning clears after fixing');
+  const cardErr = k => p.locator('#item-list .item-card').nth(k).locator('.item-error').allTextContents().then(a => a.join(''));
+  ok((await cardErr(0)).includes('請填寫產品編碼') && (await cardErr(1)).includes('請填寫品名') && (await cardErr(3)).includes('與第 3 筆的產品編碼相同') &&
+     (await cardErr(2)) === '' && (await cardErr(4)) === '', 'item errors shown on each item (exact duplicates only)');
+  ok((await p.textContent('[data-for=items]')).includes('3 個地方') && calls.filter(c => c.includes('rpc/submit')).length === nRpc, 'no RPC when items are invalid');
+  if (process.env.SHOT_DIR) await p.locator('.items-field').screenshot({ path: process.env.SHOT_DIR + '/d-item-error.png' });
+  // 最多 10 筆
+  for (let k = await p.locator('#item-list .item-card').count(); k < 10; k++) await p.click('#item-add');
+  ok(await p.locator('#item-list .item-card').count() === 10 && await p.isDisabled('#item-add') &&
+     (await p.textContent('#item-add')).includes('10 筆上限') && (await p.textContent('#items-count')) === '10／10 筆', 'at most 10 items');
+  await fillItems(p, [['', '']]);
+  ok(await p.locator('#item-list .item-card').count() === 1 && await p.isEnabled('#item-add'), 'removing items re-enables add');
+
+  // 從產品主檔搜尋帶入：關鍵字可以是品名＋規格，鍵盤選擇
+  const card0 = p.locator('#item-list .item-card').first();
+  await card0.locator('.item-search').fill('示範固定座 φ20');
+  await card0.locator('.combo-option').first().waitFor();
+  ok((await card0.locator('.combo-option').count()) === 1 && (await card0.locator('.item-search').getAttribute('aria-expanded')) === 'true', 'product search shows results');
+  await card0.locator('.item-search').press('ArrowDown');
+  await card0.locator('.item-search').press('Enter');
+  ok(await card0.locator('.item-code').inputValue() === 'AB-CD-123456-1' && await card0.locator('.item-name').inputValue() === '示範固定座 φ20x40mm' &&
+     (await card0.locator('.item-src').textContent()) === '產品主檔', 'picking a product fills code and name');
+  await p.click('#item-add');
+  const card1 = p.locator('#item-list .item-card').nth(1);
+  await card1.locator('.item-search').fill('ZZ-不存在');
+  await card1.locator('.combo-empty').waitFor();
+  ok((await card1.locator('.combo-empty').textContent()).includes('手動輸入'), 'no match explains manual entry');
+  await card1.locator('.item-code').fill('NEW-0001');
+  await card1.locator('.item-name').fill('示範新零件（尚未建檔）');
+  await card1.locator('.item-note').fill('第一次打樣');
+  ok((await card1.locator('.item-src').textContent()) === '手動輸入', 'manual entry is labeled');
+  if (process.env.SHOT_DIR) await p.locator('.items-field').screenshot({ path: process.env.SHOT_DIR + '/d-items.png' });
 
   // 成功送出（外部用途）
   await p.selectOption('#department', { label: '品管課' });
   await p.check('input[value="材質證明"]');
-  await p.fill('#items', 'AB-CD-123456-1/示範固定座φ20x40mm\nAB-CD-123457-2/示範支架 Rev.C');
   await p.selectOption('#purpose', '提供給客戶');
   ok(await p.locator('#external-note').isVisible(), 'external purpose warning shown');
-  ok(await p.textContent('#items-count') === '已輸入 2 筆', 'items count shows 2 lines');
+  ok(await p.textContent('#items-count') === '2／10 筆', 'items count shows 2／10');
   const tomorrow = new Date(Date.now() + 86400000 + 8 * 3600000).toISOString().slice(0, 10);
   await p.fill('#need_date', tomorrow);
   await p.fill('#external_note', '示範客戶（虛構）');
@@ -250,38 +293,41 @@ async function api(route) {
   if (process.env.SHOT_DIR) await p.locator('.form-actions').screenshot({ path: process.env.SHOT_DIR + '/e-success.png' });
   const row = (await pool.query('select * from public.requests where doc_no = $1', [doc1])).rows[0];
   ok(row && row.status === '申請主管簽核中' && row.is_external && row.data_types.join() === '圖面,材質證明' && row.applicant_id === U.app && row.need_date.toISOString && row.items.split('\n').length === 2, 'DB row correct');
-  ok(await p.inputValue('#items') === '' && !(await p.isChecked('input[value="圖面"]')), 'form resets after submit');
+  const its = (await pool.query('select code, name, note, from_master from public.request_items ri join public.requests r on r.id = ri.request_id where r.doc_no = $1 order by seq', [doc1])).rows;
+  ok(its.length === 2 && its[0].code === 'AB-CD-123456-1' && its[0].from_master && its[1].code === 'NEW-0001' && !its[1].from_master && its[1].note === '第一次打樣',
+     'items stored one by one with master flag and note');
+  ok(await p.locator('#item-list .item-card').count() === 1 && await p.locator('#item-list .item-code').inputValue() === '' && !(await p.isChecked('input[value="圖面"]')), 'form resets after submit');
   const qcId = String((await pool.query("select id from public.departments where name = '品管課'")).rows[0].id);
   ok(await p.inputValue('#department') === qcId, 'remembers last department after submit');
   // 草稿：填到一半關掉，重新開啟會還原；按「清除重填」清空但保留部門
   await p.check('input[value="樣品"]');
-  await p.fill('#items', 'DRAFT-1/草稿測試');
+  await fillItems(p, [['DRAFT-1', '草稿測試'], ['DRAFT-2', '草稿第二筆', '備註也要留著']]);
   await p.waitForTimeout(700);
   await p.reload();
   await p.waitForSelector('#tabs:not([hidden])');
-  ok(await p.inputValue('#items') === 'DRAFT-1/草稿測試' && await p.isChecked('input[value="樣品"]') &&
-     (await p.textContent('#prefill-note')).includes('已還原'), 'draft restored after reopening');
+  ok(await p.locator('#item-list .item-card').count() === 2 && await p.locator('#item-list .item-code').nth(1).inputValue() === 'DRAFT-2' &&
+     await p.locator('#item-list .item-note').nth(1).inputValue() === '備註也要留著' && await p.isChecked('input[value="樣品"]') &&
+     (await p.textContent('#prefill-note')).includes('已還原'), 'draft restored after reopening (all items)');
   if (process.env.SHOT_DIR) await p.screenshot({ path: process.env.SHOT_DIR + '/e-draft.png' });
   await p.click('#draft-clear');
-  ok(await p.inputValue('#items') === '' && !(await p.isChecked('input[value="樣品"]')) && await p.inputValue('#department') === qcId &&
+  ok(await p.locator('#item-list .item-card').count() === 1 && await p.locator('#item-list .item-code').inputValue() === '' &&
+     !(await p.isChecked('input[value="樣品"]')) && await p.inputValue('#department') === qcId &&
      await p.locator('#prefill-note').isHidden(), 'clear draft empties form but keeps department');
   await p.reload();
   await p.waitForSelector('#tabs:not([hidden])');
-  ok(await p.locator('#prefill-note').isHidden() && await p.inputValue('#items') === '', 'cleared draft does not come back');
+  ok(await p.locator('#prefill-note').isHidden() && await p.locator('#item-list .item-code').inputValue() === '', 'cleared draft does not come back');
 
-  // XSS 測試用第二筆
+  // XSS 測試用第二筆：品名放 HTML；大小寫不同的品號可以一起送
   await p.selectOption('#department', { label: '品管課' });
   await p.check('input[value="測試報告"]');
-  // 全形斜線會自動改成半形；品號重複時跳出確認，按確定仍可送出
-  await p.fill('#items', '  X-1／<img src=x onerror="window.__xss=1">  \n\nx-1/重複的品號');
+  await fillItems(p, [['X-1', '<img src=x onerror="window.__xss=1">'], ['x-1', '小寫的品號']]);
   await p.selectOption('#purpose', '設計參考');
   await p.check('input[value="3D STEP或STP"]');
   await p.click('#submit-btn');
   await p.waitForSelector('#form-message.success');
   const doc2 = (await p.textContent('#form-message')).match(/DOC-\d{8}-\d{3}/)[0];
-  ok((await p.evaluate(() => window.__sheetLog)).some(m => m.includes('重複的品號') && m.includes('X-1')), 'duplicate part numbers ask for confirmation on submit');
-  ok((await pool.query('select items from public.requests where doc_no = $1', [doc2])).rows[0].items === 'X-1/<img src=x onerror="window.__xss=1">\nx-1/重複的品號',
-     'items saved normalized (fullwidth slash, trimmed, blank lines removed)');
+  ok((await pool.query('select items from public.requests where doc_no = $1', [doc2])).rows[0].items === 'X-1/<img src=x onerror="window.__xss=1">\nx-1/小寫的品號',
+     'items text kept as 品號/名稱 lines (case-sensitive codes)');
 
   // 我的申請
   await p.click('a[data-tab=mine]');
@@ -393,8 +439,9 @@ async function api(route) {
     return pg;
   }
   async function submitAs(uid, dept, items) {
-    await asUser(uid, `select public.submit_request((select id from public.departments where name = $1), null, array['圖面'],
-      $2, '設計參考', null, array['2D PDF'], null, null, null)`, [dept, items]);
+    const list = items.split('\n').map(l => ({ code: l.slice(0, l.indexOf('/')), name: l.slice(l.indexOf('/') + 1) }));
+    await asUser(uid, `select public.submit_request_items((select id from public.departments where name = $1), null, array['圖面'],
+      $2::jsonb, '設計參考', null, array['2D PDF'], null, null, null)`, [dept, JSON.stringify(list)]);
   }
   await submitAs(U.app, '品管課', 'RV-0001/示範待核准');
   await submitAs(U.app, '品管課', 'RV-0002/示範待駁回');
@@ -462,13 +509,14 @@ async function api(route) {
   // 複製內容重新申請：帶入原內容，修改後送出成為新的一張
   await itRej.locator('.copy-request').click();
   await pg.waitForSelector('#view-new:not([hidden])');
-  ok(await pg.inputValue('#items') === 'RV-0002/示範待駁回' && await pg.locator('#department option:checked').textContent() === '品管課' &&
+  ok(await pg.locator('#item-list .item-code').inputValue() === 'RV-0002' && await pg.locator('#item-list .item-name').inputValue() === '示範待駁回' &&
+     await pg.locator('#department option:checked').textContent() === '品管課' &&
      await pg.isChecked('input[name=data_types][value="圖面"]') && await pg.isChecked('input[name=formats][value="2D PDF"]') && await pg.inputValue('#purpose') === '設計參考',
      'copy prefills the form');
   const note = await pg.textContent('#prefill-note');
   ok(note.includes('已帶入 DOC-') && note.includes('用途說明不足（測試）'), 'prefill note shows source and reject reason: ' + note);
   await shot(pg, 'd-copy');
-  await pg.fill('#items', 'RV-0002/示範待駁回（已補充用途）');
+  await pg.locator('#item-list .item-name').fill('示範待駁回（已補充用途）');
   await pg.click('#submit-btn');
   await pg.waitForSelector('#form-message.success');
   const copies = (await pool.query(`select status from public.requests where items like 'RV-0002%' order by created_at`)).rows.map(r => r.status);
@@ -849,6 +897,30 @@ async function api(route) {
   const nd = (await pool.query(`select sort_order, active from public.departments where name = '示範工務課'`)).rows[0];
   ok(nd && nd.active && nd.sort_order < 99, 'admin adds a department (sorted before 其他)');
   if (process.env.SHOT_DIR) await pa.screenshot({ path: process.env.SHOT_DIR + '/admin-depts.png', fullPage: true });
+  // 產品主檔：上傳 CSV（多的欄位忽略、品號可含 /、重複以最後一筆為準、缺品名略過），預覽後匯入
+  await pa.click('#admin-tab-products');
+  await pa.waitForFunction(() => document.getElementById('product-summary').textContent.includes('共 4 筆'));
+  const productCsv = '﻿產品代碼,產品分類,類別名稱,品名,規格,售價1\n' +
+    'DW-001,DW,示範類別,示範槽鋼 2000（新）,紅丹漆,0.00\n' +
+    'FA-T9/10-2,FA,示範類別,\x22示範螺絲 3/8\x22\x22x2\x22\x22\x22,電,0.00\n' +
+    'NEW-A,AB,示範類別,示範甲,,0.00\n' +
+    'NEW-A,AB,示範類別,示範甲（後面這筆為準）,黑,0.00\n' +
+    'NO-NAME,AB,示範類別,,,0.00\n';
+  await pa.setInputFiles('#product-file', { name: 'products.csv', mimeType: 'text/csv', buffer: Buffer.from(productCsv, 'utf8') });
+  await pa.waitForSelector('#product-preview:not([hidden]) .preview-count');
+  const pv = await pa.textContent('#product-preview');
+  ok(pv.includes('可匯入 3 筆') && pv.includes('略過 1 筆') && pv.includes('重複的品號 1 筆') && pv.includes('NO-NAME 沒有品名'), 'CSV preview counts: ' + pv.slice(0, 80));
+  await pa.check('#product-deactivate');
+  if (process.env.SHOT_DIR) await pa.screenshot({ path: process.env.SHOT_DIR + '/admin-products.png', fullPage: true });
+  await pa.click('#product-import');
+  await pa.waitForSelector('#product-message.success');
+  ok((await pa.textContent('#product-message')).includes('新增 2 筆') && (await pa.textContent('#product-message')).includes('停用 3 筆'), 'import result: ' + await pa.textContent('#product-message'));
+  const pr = (await pool.query(`select code, name, spec, active from public.products order by code`)).rows;
+  const byCode = Object.fromEntries(pr.map(x => [x.code, x]));
+  ok(byCode['DW-001'].name === '示範槽鋼 2000（新）' && byCode['DW-001'].active && byCode['FA-T9/10-2'].name === '示範螺絲 3/8"x2"' &&
+     byCode['NEW-A'].name === '示範甲（後面這筆為準）' && !byCode['DW-002'].active && !byCode['AB-CD-123456-1'].active, 'products imported, updated and deactivated');
+  await pa.waitForFunction(() => document.getElementById('product-summary').textContent.includes('啟用中 3 筆'));
+  ok(true, 'summary refreshed after import');
   await pa.context().close();
 
   // ---------- 響應式（RWD）：從小手機到大螢幕，每個畫面都不能橫向捲動或超出畫面 ----------

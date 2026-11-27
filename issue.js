@@ -14,6 +14,7 @@
     "stage2_by_profile:profiles!requests_stage2_by_fkey(display_name)",
     "claimed_by", "claimed_at", "claimed_by_profile:profiles!requests_claimed_by_fkey(display_name)",
     "department:departments(name)",
+    "request_items(seq, code, name, note, from_master)",
   ].join(", ");
 
   function canIssue() {
@@ -98,7 +99,7 @@
 
     // 摘要：要發什麼、什麼格式、急不急；發放表單直接可填，完整明細收在「查看明細」
     var deptName = (r.department ? r.department.name : "") + (r.department_other ? "（" + r.department_other + "）" : "");
-    box.appendChild(C.el("p", "item-summary", C.itemsSummary(r.items)));
+    box.appendChild(C.el("p", "item-summary", C.itemsSummary(r)));
     box.appendChild(C.el("p", "item-meta", (r.applicant ? r.applicant.display_name : "") + "（" + deptName + "）・" +
       r.data_types.join("、") + "・" + r.formats.map(function (f) {
         return f === "其他" && r.format_other ? "其他（" + r.format_other + "）" : f;
@@ -125,7 +126,7 @@
     row(dl, "第二關", "已核准" + (s2 ? "（" + s2 + "，" + C.formatTime(r.stage2_at) + "）" : ""));
     var more = C.el("div", "card-detail");
     more.appendChild(dl);
-    more.appendChild(C.el("pre", "items-full", r.items));
+    more.appendChild(C.itemTable(r));
     box.appendChild(C.detailToggle(more, "issue-detail-" + r.id));
     box.appendChild(more);
 

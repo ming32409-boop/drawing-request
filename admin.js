@@ -305,11 +305,142 @@
   }
 
   function selectTab(which) {
-    var usersTab = document.getElementById("admin-tab-users"), deptsTab = document.getElementById("admin-tab-depts");
-    usersTab.setAttribute("aria-selected", String(which === "users"));
-    deptsTab.setAttribute("aria-selected", String(which === "depts"));
-    document.getElementById("admin-users").hidden = which !== "users";
-    document.getElementById("admin-depts").hidden = which !== "depts";
+    ["users", "depts", "products"].forEach(function (k) {
+      document.getElementById("admin-tab-" + k).setAttribute("aria-selected", String(which === k));
+      document.getElementById("admin-" + k).hidden = which !== k;
+    });
+    if (which === "products") loadProductSummary();
+  }
+
+  // ---------- 產品主檔 ----------
+  var parsed = null;   // { rows: [...], skipped: [...], encoding }
+
+  async function loadProductSummary() {
+    var box = document.getElementById("product-summary");
+    var res = await ctx.client.rpc("product_summary");
+    if (res.error) { box.textContent = "無法讀取產品主檔：" + errText(res.error); return; }
+    var s = res.data || {};
+    box.textContent = Number(s.total)
+      ? "目前共 " + s.total + " 筆產品，啟用中 " + s.active + " 筆；最後更新 " + C.formatTime(s.updated_at) + "。"
+      : "目前還沒有產品主檔。上傳 CSV 後，同仁就能在申請表搜尋產品。";
+  }
+
+  // CSV 解析（支援引號、引號內的逗號與換行）
+  function parseCsv(text) {
+    var rows = [], row = [], cell = "", q = false;
+    for (var i = 0; i < text.length; i++) {
+      var ch = text[i];
+      if (q) {
+        if (ch === '"') { if (text[i + 1] === '"') { cell += '"'; i++; } else q = false; }
+        else cell += ch;
+      } else if (ch === '"') q = true;
+      else if (ch === ",") { row.push(cell); cell = ""; }
+      else if (ch === "\n" || ch === "\r") {
+        if (ch === "\r" && text[i + 1] === "\n") i++;
+        row.push(cell); rows.push(row); row = []; cell = "";
+      } else cell += ch;
+    }
+    if (cell !== "" || row.length) { row.push(cell); rows.push(row); }
+    return rows.filter(function (r) { return r.some(function (c) { return c.trim(); }); });
+  }
+
+  // 讀檔：先試 UTF-8，不是的話用 Big5（Windows Excel 另存的 CSV 常是 Big5）
+  function decode(buf) {
+    try { return { text: new TextDecoder("utf-8", { fatal: true }).decode(buf), encoding: "UTF-8" }; }
+    catch (e) { return { text: new TextDecoder("big5").decode(buf), encoding: "Big5" }; }
+  }
+
+  function prepare(text) {
+    var table = parseCsv(text.replace(/^\uFEFF/, ""));
+    if (!table.length) return { error: "檔案是空的。" };
+    var head = table[0].map(function (h) { return h.trim(); });
+    function col(names) { for (var k = 0; k < names.length; k++) { var i = head.indexOf(names[k]); if (i !== -1) return i; } return -1; }
+    var iCode = col(["產品代碼", "品號", "產品編碼"]), iName = col(["品名", "產品名稱"]);
+    var iSpec = col(["規格"]), iCat = col(["產品分類", "分類"]), iCatName = col(["類別名稱"]);
+    if (iCode === -1 || iName === -1) return { error: "找不到「產品代碼」或「品名」欄位。請確認第一列是欄位名稱。" };
+    var byCode = {}, order = [], skipped = [];
+    table.slice(1).forEach(function (r, k) {
+      var line = k + 2;
+      var code = (r[iCode] || "").trim(), name = (r[iName] || "").trim().replace(/\s+/g, " ");
+      var spec = iSpec === -1 ? "" : (r[iSpec] || "").trim().replace(/\s+/g, " ");
+      if (!code) { skipped.push("第 " + line + " 列沒有產品代碼"); return; }
+      if (code.length > 40 || /[\u0000-\u001f]/.test(code)) { skipped.push("第 " + line + " 列產品代碼格式不對（" + code.slice(0, 20) + "）"); return; }
+      if (!name) { skipped.push("第 " + line + " 列 " + code + " 沒有品名"); return; }
+      if (!byCode[code]) order.push(code);
+      byCode[code] = {
+        code: code, name: name.slice(0, 100), spec: spec.slice(0, 100),
+        category: iCat === -1 ? "" : (r[iCat] || "").trim(), category_name: iCatName === -1 ? "" : (r[iCatName] || "").trim(),
+      };
+    });
+    return { rows: order.map(function (c) { return byCode[c]; }), skipped: skipped, dupes: table.length - 1 - skipped.length - order.length };
+  }
+
+  async function onFile(e) {
+    var file = e.target.files && e.target.files[0];
+    var box = document.getElementById("product-preview");
+    var btn = document.getElementById("product-import");
+    C.hideMessage(document.getElementById("product-message"));
+    parsed = null;
+    btn.disabled = true;
+    box.hidden = true;
+    if (!file) return;
+    var d = decode(await file.arrayBuffer());
+    var p = prepare(d.text);
+    box.replaceChildren();
+    box.hidden = false;
+    if (p.error) { box.appendChild(C.el("p", "field-error", p.error)); return; }
+    parsed = p;
+    box.appendChild(C.el("p", "preview-count", "可匯入 " + p.rows.length + " 筆（" + d.encoding + "）" +
+      (p.skipped.length ? "，略過 " + p.skipped.length + " 筆" : "") + (p.dupes ? "，重複的品號 " + p.dupes + " 筆以最後一筆為準" : "") + "。"));
+    if (p.skipped.length) box.appendChild(C.el("p", "hint-text", "略過：" + p.skipped.slice(0, 5).join("；") + (p.skipped.length > 5 ? "…" : "")));
+    var ol = C.el("ol", "item-table preview-table");
+    p.rows.slice(0, 5).forEach(function (x, k) {
+      var li = C.el("li");
+      li.appendChild(C.el("span", "it-seq", String(k + 1)));
+      li.appendChild(C.el("span", "it-code", x.code));
+      li.appendChild(C.el("span", "it-name", x.name + (x.spec ? " " + x.spec : "")));
+      ol.appendChild(li);
+    });
+    box.appendChild(ol);
+    if (p.rows.length > 5) box.appendChild(C.el("p", "hint-text", "只顯示前 5 筆。"));
+    btn.disabled = !p.rows.length;
+  }
+
+  async function importProducts() {
+    if (!parsed || !parsed.rows.length) return;
+    var btn = document.getElementById("product-import"), msg = document.getElementById("product-message");
+    var deactivate = document.getElementById("product-deactivate").checked;
+    var ok = await C.confirm({
+      title: "匯入 " + parsed.rows.length + " 筆產品？",
+      body: "已有的品號會更新品名與規格，新的品號會新增。" + (deactivate ? "\n不在這份檔案裡的產品會改為停用。" : ""),
+      ok: "匯入",
+    });
+    if (!ok) return;
+    btn.disabled = true;
+    var added = 0, BATCH = 1000;
+    try {
+      for (var i = 0; i < parsed.rows.length; i += BATCH) {
+        C.showMessage(msg, "info loading", "匯入中… " + Math.min(i + BATCH, parsed.rows.length) + "／" + parsed.rows.length);
+        var res = await ctx.client.rpc("import_products", { p_rows: parsed.rows.slice(i, i + BATCH) });
+        if (res.error) throw res.error;
+        added += Number(res.data.added) || 0;
+      }
+      var off = 0;
+      if (deactivate) {
+        var r2 = await ctx.client.rpc("deactivate_missing_products", { p_codes: parsed.rows.map(function (x) { return x.code; }) });
+        if (r2.error) throw r2.error;
+        off = Number(r2.data) || 0;
+      }
+      C.showMessage(msg, "success", "已匯入 " + parsed.rows.length + " 筆（新增 " + added + " 筆、更新 " + (parsed.rows.length - added) + " 筆）" +
+        (deactivate ? "，停用 " + off + " 筆" : "") + "。");
+      document.getElementById("product-file").value = "";
+      document.getElementById("product-preview").hidden = true;
+      parsed = null;
+      loadProductSummary();
+    } catch (err) {
+      C.showMessage(msg, "error", "匯入失敗：" + errText(err) + "（已完成的部分會保留，可以重新匯入同一份檔案）");
+      btn.disabled = false;
+    }
   }
 
   function init(context) {
@@ -324,6 +455,9 @@
     searchEl.addEventListener("input", renderUsers);
     document.getElementById("admin-tab-users").addEventListener("click", function () { selectTab("users"); });
     document.getElementById("admin-tab-depts").addEventListener("click", function () { selectTab("depts"); });
+    document.getElementById("admin-tab-products").addEventListener("click", function () { selectTab("products"); });
+    document.getElementById("product-file").addEventListener("change", onFile);
+    document.getElementById("product-import").addEventListener("click", importProducts);
     document.getElementById("admin-dept-add").addEventListener("submit", addDept);
     load();   // 先載入一次，分頁上顯示待啟用人數
   }

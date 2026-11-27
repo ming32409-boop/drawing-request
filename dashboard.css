@@ -217,3 +217,25 @@ table.data td.part { white-space: nowrap; max-width: 14em; overflow: hidden; tex
 
 /* 觸控裝置：可點擊的東西至少 44px 高（放在最後，蓋過上面的基本尺寸） */
 @media (pointer: coarse) { .seg button, .range input[type="date"], .table-view summary { min-height: 44px; } }
+
+/* ---------- 本月 LINE 通知用量 ---------- */
+.usage {
+  margin-bottom: 16px; padding: 14px 18px; background: var(--surface);
+  border: 1px solid var(--line); border-radius: var(--r-lg); box-shadow: var(--shadow-card);
+  animation: fade 0.4s var(--ease) both;
+}
+.usage-top { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px 12px; }
+.usage-title { font-size: var(--fs-label); font-weight: 600; color: var(--ink-2); }
+.usage-num { font-size: var(--fs-body); font-weight: 600; font-variant-numeric: tabular-nums; }
+.meter { height: 8px; margin-top: 10px; border-radius: 4px; background: var(--surface-3); overflow: hidden; }
+.meter-fill { height: 100%; width: 0; border-radius: 4px; background: var(--primary); transition: width 0.6s var(--ease); }
+.usage-hint { margin-top: 8px; color: var(--ink-3); font-size: var(--fs-small); }
+.usage.is-warn { border-color: var(--warn-bg); box-shadow: inset 3px 0 0 var(--warn), var(--shadow-card); }
+.usage.is-warn .meter { background: var(--warn-bg); }
+.usage.is-warn .meter-fill { background: var(--warn); }
+.usage.is-warn .usage-num, .usage.is-warn .usage-hint { color: var(--warn); }
+.usage.is-over { border-color: var(--danger-bg); box-shadow: inset 3px 0 0 var(--danger), var(--shadow-card); }
+.usage.is-over .meter { background: var(--danger-bg); }
+.usage.is-over .meter-fill { background: var(--danger); }
+.usage.is-over .usage-num, .usage.is-over .usage-hint { color: var(--danger); }
+@media (min-width: 960px) { .usage { padding: 16px 24px; } }

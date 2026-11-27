@@ -120,3 +120,64 @@ Deno.test("account_activated_message", () => {
   assertStringIncludes(m, "?tab=new");
   assert(!m.includes("單號"));
 });
+
+// ---------- 管理看板查詢 LINE 用量 ----------
+function makeQuotaDeps(opts: { role?: Record<string, boolean> | null; lineOk?: boolean } = {}) {
+  const calls: string[] = [];
+  const env: Record<string, string> = { SUPABASE_URL: URL_, SUPABASE_SERVICE_ROLE_KEY: "svc", LINE_CHANNEL_ACCESS_TOKEN: "line-token" };
+  const fakeFetch: typeof fetch = async (input, init) => {
+    const req = new Request(input as RequestInfo, init);
+    const u = new URL(req.url);
+    calls.push(req.method + " " + u.origin + u.pathname);
+    const j = (o: unknown, status = 200, headers: Record<string, string> = {}) =>
+      new Response(status === 204 || req.method === "HEAD" ? null : JSON.stringify(o), { status, headers: { "content-type": "application/json", ...headers } });
+    if (u.pathname === "/auth/v1/user") {
+      return req.headers.get("authorization") === "Bearer user-jwt" ? j({ id: "user-1", aud: "authenticated" }) : j({ message: "invalid" }, 401);
+    }
+    if (u.pathname === "/rest/v1/profiles") {
+      return opts.role === null ? j({ code: "PGRST116", message: "no rows" }, 406) : j(opts.role ?? { active: true, is_admin: false, is_issuer: true, is_dcc: false });
+    }
+    if (u.pathname === "/rest/v1/notifications") return j(null, 200, { "content-range": "*/2" });
+    if (req.url === "https://api.line.me/v2/bot/message/quota") {
+      if (req.headers.get("authorization") !== "Bearer line-token") return j({}, 401);
+      return opts.lineOk === false ? j({ message: "error" }, 500) : j({ type: "limited", value: 200 });
+    }
+    if (req.url === "https://api.line.me/v2/bot/message/quota/consumption") return j({ totalUsage: 170 });
+    if (u.pathname === "/rest/v1/rpc/claim_notifications") return j([]);
+    return j({ message: "unexpected " + req.url }, 500);
+  };
+  return { deps: { env: (n: string) => env[n], fetch: fakeFetch, createClient } as Deps, calls };
+}
+const quotaReq = (jwt: string | null) => new Request("https://fn.local/line-notify", {
+  method: "POST", headers: { Origin: ORIGIN, "content-type": "application/json", ...(jwt ? { Authorization: "Bearer " + jwt } : {}) },
+  body: JSON.stringify({ action: "quota" }),
+});
+
+Deno.test("quota_returns_usage_for_dashboard_roles", async () => {
+  const { deps, calls } = makeQuotaDeps();
+  const res = await handle(quotaReq("user-jwt"), deps);
+  assertEquals(res.status, 200);
+  assertEquals(await res.json(), { type: "limited", limit: 200, used: 170, failed: 2 });
+  assert(!calls.some((c) => c.includes("claim_notifications")), "quota request must not send notifications");
+});
+
+Deno.test("quota_requires_login_and_role", async () => {
+  assertEquals((await handle(quotaReq(null), makeQuotaDeps().deps)).status, 401);
+  assertEquals((await handle(quotaReq("bad-jwt"), makeQuotaDeps().deps)).status, 401);
+  const applicant = makeQuotaDeps({ role: { active: true, is_admin: false, is_issuer: false, is_dcc: false } });
+  assertEquals((await handle(quotaReq("user-jwt"), applicant.deps)).status, 403);
+  const inactive = makeQuotaDeps({ role: { active: false, is_admin: true, is_issuer: false, is_dcc: false } });
+  assertEquals((await handle(quotaReq("user-jwt"), inactive.deps)).status, 403);
+});
+
+Deno.test("quota_reports_line_errors", async () => {
+  const res = await handle(quotaReq("user-jwt"), makeQuotaDeps({ lineOk: false }).deps);
+  assertEquals(res.status, 502);
+});
+
+Deno.test("month_start_is_taipei_midnight", async () => {
+  const { monthStartTaipei } = await import("./index.ts");
+  // 台灣時間 12/1 00:30 ＝ UTC 11/30 16:30，本月起點應是 UTC 11/30 16:00
+  assertEquals(monthStartTaipei(new Date("2026-11-30T16:30:00Z")), "2026-11-30T16:00:00.000Z");
+  assertEquals(monthStartTaipei(new Date("2026-11-27T03:00:00Z")), "2026-10-31T16:00:00.000Z");
+});

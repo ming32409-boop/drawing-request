@@ -107,5 +107,16 @@ Deno.test("new_account_message_for_admins", () => {
     items: null as unknown as string,
   }));
   assertStringIncludes(m, "【新帳號待啟用】示範新人");
+  assertStringIncludes(m, "?tab=admin");
+  assert(!m.includes("單號"));
+});
+
+Deno.test("account_activated_message", () => {
+  const m = buildMessage(notice({
+    kind: "帳號已開通", subject_name: "示範新人", doc_no: null as unknown as string, data_types: null as unknown as string[],
+    items: null as unknown as string,
+  }));
+  assertStringIncludes(m, "【帳號已開通】示範新人 你好");
+  assertStringIncludes(m, "?tab=new");
   assert(!m.includes("單號"));
 });

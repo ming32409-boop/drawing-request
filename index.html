@@ -11,8 +11,8 @@
   <meta property="og:description" content="開發部圖面資料申請與簽核：點開後用 LINE 登入即可申請、簽核或查看進度。">
   <meta property="og:type" content="website">
   <link rel="icon" type="image/svg+xml" href="icon.svg">
-  <link rel="stylesheet" href="theme.css?v=16">
-  <link rel="stylesheet" href="style.css?v=16">
+  <link rel="stylesheet" href="theme.css?v=17">
+  <link rel="stylesheet" href="style.css?v=17">
 </head>
 <body>
   <header class="app-bar">
@@ -45,6 +45,7 @@
     <a href="#mine" data-tab="mine">我的申請</a>
     <a href="#review" data-tab="review" hidden>待我簽核 <span id="review-count" class="count" hidden></span></a>
     <a href="#issue" data-tab="issue" hidden>文管發放 <span id="issue-count" class="count" hidden></span></a>
+    <a href="#admin" data-tab="admin" hidden>管理設定 <span id="admin-count" class="count" hidden></span></a>
   </nav>
 
   <main>
@@ -207,17 +208,63 @@
       <div id="issue-message" class="message" role="status" aria-live="polite" hidden></div>
       <ul id="issue-list" class="request-list"></ul>
     </section>
+
+    <!-- 管理設定（系統管理員） -->
+    <section id="view-admin" class="list-view" hidden>
+      <div class="page-head list-header">
+        <div><span class="eyebrow">系統管理</span>
+        <h2>管理設定</h2></div>
+        <button type="button" id="admin-refresh" class="secondary small">重新整理</button>
+      </div>
+      <div class="subtabs" role="tablist" aria-label="管理項目">
+        <button type="button" role="tab" id="admin-tab-users" aria-controls="admin-users" aria-selected="true">帳號與角色</button>
+        <button type="button" role="tab" id="admin-tab-depts" aria-controls="admin-depts" aria-selected="false">部門與主管</button>
+      </div>
+      <div id="admin-message" class="message" role="status" aria-live="polite" hidden></div>
+
+      <div id="admin-users" role="tabpanel" aria-labelledby="admin-tab-users">
+        <div id="admin-pending" class="admin-block" hidden>
+          <h3 class="block-title">待啟用帳號 <span id="admin-pending-n" class="block-n"></span></h3>
+          <p class="hint-text">同仁第一次用 LINE 登入後會出現在這裡。啟用後系統會用 LINE 通知對方，接著再設定角色。</p>
+          <ul id="admin-pending-list" class="plain-list"></ul>
+        </div>
+        <div class="admin-block">
+          <h3 class="block-title">使用者 <span id="admin-users-n" class="block-n"></span></h3>
+          <label for="admin-search" class="visually-hidden">搜尋名字</label>
+          <input type="text" id="admin-search" placeholder="搜尋名字" autocomplete="off">
+          <ul id="admin-user-list" class="plain-list user-list"></ul>
+        </div>
+      </div>
+
+      <div id="admin-depts" role="tabpanel" aria-labelledby="admin-tab-depts" hidden>
+        <div class="admin-block">
+          <h3 class="block-title">部門與部門主管</h3>
+          <p class="hint-text">部門主管負責第一關簽核。沒有設定主管的部門，同仁選了會無法送出申請。</p>
+          <ul id="admin-dept-list" class="plain-list"></ul>
+        </div>
+        <form id="admin-dept-add" class="admin-block add-dept" novalidate>
+          <h3 class="block-title">新增部門</h3>
+          <label for="admin-dept-name" class="visually-hidden">部門名稱</label>
+          <div class="add-row">
+            <input type="text" id="admin-dept-name" maxlength="30" placeholder="例如：工務課" autocomplete="off">
+            <button type="submit" class="secondary">新增</button>
+          </div>
+          <p class="field-error" id="admin-dept-error"></p>
+        </form>
+      </div>
+    </section>
   </main>
 
   <script src="https://static.line-scdn.net/liff/edge/2/sdk.js" charset="utf-8"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
-  <script src="config.js?v=16"></script>
-  <script src="auth.js?v=16"></script>
-  <script src="common.js?v=16"></script>
-  <script src="form.js?v=16"></script>
-  <script src="mine.js?v=16"></script>
-  <script src="review.js?v=16"></script>
-  <script src="issue.js?v=16"></script>
-  <script src="app.js?v=16"></script>
+  <script src="config.js?v=17"></script>
+  <script src="auth.js?v=17"></script>
+  <script src="common.js?v=17"></script>
+  <script src="form.js?v=17"></script>
+  <script src="mine.js?v=17"></script>
+  <script src="review.js?v=17"></script>
+  <script src="issue.js?v=17"></script>
+  <script src="admin.js?v=17"></script>
+  <script src="app.js?v=17"></script>
 </body>
 </html>

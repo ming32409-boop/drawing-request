@@ -265,7 +265,7 @@ input[type="text"]:focus, input[type="date"]:focus, select:focus, textarea:focus
   animation: rise 0.3s var(--ease) both;
 }
 .message::before { content: ""; flex: none; width: 16px; height: 16px; margin-top: 0.16em; }
-.message.info { background: var(--surface); border-color: var(--line); color: var(--ink-2); }
+.message.info, .message.notice { background: var(--surface); border-color: var(--line); color: var(--ink-2); }
 .message.success { --icon: var(--i-ok); background: var(--ok-bg); color: var(--ok); }
 .message.error { --icon: var(--i-alert); background: var(--danger-bg); color: var(--danger); }
 .message.loading::before {
@@ -289,6 +289,8 @@ input[type="text"]:focus, input[type="date"]:focus, select:focus, textarea:focus
   transition: transform 0.2s var(--ease);
 }
 .message-link:hover::after { transform: translateX(2px); }
+button.message-link { background: none; font-family: inherit; cursor: pointer; }
+button.message-link::after { display: none; }   /* 按鈕是就地動作，不是前往別頁，不加箭頭 */
 @media (pointer: coarse) { .message-link { min-height: 44px; } }
 
 /* ---------- 空狀態（細線圖示＋一句說明） ---------- */

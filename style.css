@@ -158,8 +158,11 @@ label, legend {
 /* ---------- 申請單卡片（我的申請、待我簽核、文管發放共用） ---------- */
 .list-view > .message { margin-bottom: 12px; }
 .request-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 12px; }
-.request-item { overflow: hidden; transition: border-color 0.2s var(--ease); }
+.request-item { overflow: hidden; transition: border-color 0.3s var(--ease), box-shadow 0.3s var(--ease); }
 .request-item:hover { border-color: var(--line-strong); }
+/* 從 LINE 通知點進來的那一張：捲到分頁列下方，並短暫加上藍框 */
+.request-item { scroll-margin-top: 64px; }
+.request-item.spotlight { border-color: var(--primary); box-shadow: 0 0 0 3px var(--ring); }
 .item-head {
   display: block; width: 100%; padding: 16px 18px; border: 0; border-radius: 0;
   background: transparent; text-align: left;
@@ -271,7 +274,13 @@ label, legend {
 
 /* 文管發放 */
 .issue-form { margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--line); }
+.issue-form .note-label { margin-top: 16px; }
+.issue-form .note-hint { margin-top: 6px; }
 .issue-form .deliver { width: 100%; margin-top: 14px; }
+/* 文字裡的網址（例如發放的雲端連結） */
+.text-link { color: var(--primary); text-decoration: underline; text-underline-offset: 2px; word-break: break-all; }
+/* 觸控裝置：發放連結是申請人最重要的一個點擊，給足 44px 高 */
+@media (pointer: coarse) { .delivery-note .text-link { display: inline-block; padding: 11px 0; } }
 
 /* ---------- 電腦：表單改成「左邊區段標題、右邊欄位」 ---------- */
 @media (min-width: 720px) {

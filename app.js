@@ -29,12 +29,15 @@
     showView(views[tab] && tab !== "status" ? tab : "new");
   }
 
-  // LINE 通知的連結會帶 ?tab=review 等參數，轉成頁面內的分頁
+  // LINE 通知的連結會帶 ?tab=review&doc=單號 等參數：轉成頁面內的分頁，並記下要捲到哪張單
   function applyTabParam() {
     var params = new URLSearchParams(location.search);
     var tab = params.get("tab");
     if (!tab) return;
+    var doc = params.get("doc");
+    if (doc && /^DOC-\d{8}-\d{3,}$/.test(doc)) C.setPendingDoc(tab, doc);
     params.delete("tab");
+    params.delete("doc");
     var qs = params.toString();
     history.replaceState(null, "", location.pathname + (qs ? "?" + qs : "") + "#" + tab);
   }
@@ -58,6 +61,7 @@
       if (!me.data.active) {
         C.showMessage(statusEl, "info", "登入成功：" + me.data.display_name + "（待啟用）");
         document.getElementById("pending-hint").hidden = false;
+        C.triggerNotify();   // 送出「新帳號待啟用」通知給系統管理員（登入時已排入待發清單）
         return;
       }
 

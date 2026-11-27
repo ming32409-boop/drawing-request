@@ -33,6 +33,7 @@ Supabase secret key、LINE Channel secret、Channel access token **不可以**�
 4. `supabase/004_notification_outbox.sql`（LINE 通知待發清單的領取與回報函式）
 5. `supabase/005_dashboard.sql`（管理看板的統計與匯出函式）
 6. `supabase/006_item_format.sql`（品號每一行必須是「品號/名稱」的格式檢查）
+7. `supabase/007_flow_improvements.sql`（發放連結／備註、新帳號自動通知系統管理員、匯出加發放備註）
 
 ### 資料庫重點
 - 未登入的訪客沒有任何權限。
@@ -40,7 +41,7 @@ Supabase secret key、LINE Channel secret、Channel access token **不可以**�
   - `submit_request(...)`：送出申請，回傳單號 `DOC-yyyyMMdd-001`
   - `review_request(申請單id, 核准true/駁回false, 駁回原因)`：自動判斷是第一關或第二關
   - `withdraw_request(申請單id)`：第一關簽核前撤回
-  - `deliver_request(申請單id, 發放方式, 其他說明)`：文管發放結案
+  - `deliver_request(申請單id, 發放方式, 其他說明, 連結／備註)`：文管發放結案；選「雲端連結」時必須附連結，會一起通知申請人
   - `request_stats()`：統計儀表板
 - 每個動作寫入 `request_events`；要發的 LINE 通知寫入 `notifications`，由後端發送。
 
@@ -63,7 +64,8 @@ Supabase secret key、LINE Channel secret、Channel access token **不可以**�
 - 同一則通知只會成功發送一次；失敗會記錄錯誤，1 分鐘後可重試，最多 3 次。
 - 需要在 Supabase → Edge Functions → **Secrets** 設定 `LINE_CHANNEL_ACCESS_TOKEN`（官方帳號 Messaging API 的長期 Channel access token），**不可**寫進任何檔案。
 - 部署時要關閉 **Verify JWT**（`supabase/config.toml` 已設定）。
-- 通知連結：`https://liff.line.me/2012594772-22NJxRHt?tab=review`（待簽核）、`?tab=issue`（待發放）、`?tab=mine`（我的申請）。
+- 通知連結：`https://liff.line.me/2012594772-22NJxRHt?tab=review&doc=單號`（待簽核）、`?tab=issue&doc=…`（待發放）、`?tab=mine&doc=…`（我的申請）。打開後會直接捲到那一張單並短暫加框標示；核准、發放仍要本人在畫面上按按鈕。
+- 有人第一次用 LINE 登入（帳號待啟用）時，資料庫會排入「新帳號待啟用」通知給所有系統管理員，待啟用畫面會觸發發送。
 
 ### 第一位系統管理員
 第一次用 LINE 登入後，在 SQL Editor 執行（把名字換成登入頁顯示的名字）：
@@ -111,6 +113,8 @@ tests/run_web_tests.sh
 ```
 
 網頁測試用真的資料庫函式與權限，只有 LINE 登入用假資料代替。
+
+申請表單的「草稿」與「上次選的部門」只存在使用者自己手機的瀏覽器（localStorage，依帳號分開），不會上傳；送出成功後草稿會刪除。
 
 網頁測試也會檢查響應式版面（RWD）：在 320、375、414、768、1024、1280、1440px 七種寬度打開申請頁各分頁與管理看板，確認沒有橫向捲動、沒有元素超出畫面，手機寬度下可點擊的東西至少 44px 高。設定 `SHOT_DIR=資料夾` 會另外存下每種寬度的截圖（`rwd-畫面-寬度.png`）。
 

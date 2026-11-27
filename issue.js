@@ -25,11 +25,12 @@
     dl.appendChild(C.el("dd", null, value));
   }
 
-  async function deliver(r, method, other, buttons) {
+  async function deliver(r, method, other, note, buttons) {
     buttons.forEach(function (b) { b.disabled = true; });
     try {
       var res = await ctx.client.rpc("deliver_request", {
         p_request_id: r.id, p_method: method, p_method_other: method === "其他" ? other : null,
+        p_note: note || null,
       });
       if (res.error) {
         C.showMessage(msgEl, "error", r.doc_no + "：" + C.describeError(res.error));
@@ -48,6 +49,7 @@
 
   function renderItem(r) {
     var li = C.el("li", "request-item issue-item");
+    li.dataset.doc = r.doc_no;
     var box = C.el("div", "review-body");
 
     var top = C.el("div", "item-top");
@@ -89,27 +91,58 @@
     other.maxLength = 100;
     other.placeholder = "請說明發放方式";
     other.hidden = true;
+    // 連結／備註：選「雲端連結」時必填，會一起用 LINE 通知申請人
+    var noteId = "note-" + r.id;
+    var noteLabel = C.el("label", "note-label");
+    noteLabel.setAttribute("for", noteId);
+    var noteInput = C.el("input", "delivery-note-input");
+    noteInput.id = noteId;
+    noteInput.type = "text";
+    noteInput.maxLength = 500;
+    noteInput.autocomplete = "off";
+    var noteHint = C.el("p", "hint-text note-hint");
+    function updateNote() {
+      var cloud = sel.value === "雲端連結";
+      noteLabel.replaceChildren(document.createTextNode(cloud ? "雲端連結 " : "連結／備註 "));
+      noteLabel.appendChild(cloud ? C.el("span", "req", "*") : C.el("span", "sub", "選填"));
+      noteInput.inputMode = cloud ? "url" : "text";
+      noteInput.placeholder = cloud ? "貼上雲端資料夾或檔案的連結" : "例如：已寄到申請人信箱、放在開發部櫃台";
+      noteHint.textContent = cloud ? "連結會一起用 LINE 傳給申請人，也會顯示在「我的申請」。" : "會一起通知申請人。";
+    }
+    updateNote();
     var err = C.el("p", "field-error");
     var btn = C.el("button", "primary deliver", "確認已發放");
     btn.type = "button";
     form.appendChild(label);
     form.appendChild(sel);
     form.appendChild(other);
+    form.appendChild(noteLabel);
+    form.appendChild(noteInput);
+    form.appendChild(noteHint);
     form.appendChild(err);
     form.appendChild(btn);
     box.appendChild(form);
 
     sel.addEventListener("change", function () {
       other.hidden = sel.value !== "其他";
+      updateNote();
       err.textContent = "";
     });
     other.addEventListener("input", function () { err.textContent = ""; });
+    noteInput.addEventListener("input", function () { err.textContent = ""; noteInput.classList.remove("invalid"); });
     btn.addEventListener("click", function () {
       if (!sel.value) { err.textContent = "請選擇發放方式。"; sel.focus(); return; }
       var note = other.value.trim();
       if (sel.value === "其他" && !note) { err.textContent = "選「其他」時請說明發放方式。"; other.focus(); return; }
+      var link = noteInput.value.trim();
+      if (sel.value === "雲端連結" && !link) {
+        err.textContent = "請貼上雲端連結，申請人才拿得到檔案。";
+        noteInput.classList.add("invalid");
+        noteInput.focus();
+        return;
+      }
       if (!window.confirm("確認 " + r.doc_no + " 已用「" + (sel.value === "其他" ? note : sel.value) + "」發放？確認後會通知申請人並結案。")) return;
-      deliver(r, sel.value, note, [btn]);
+      deliver(r, sel.value, note, link, [btn]);
     });
 
     li.appendChild(box);
@@ -140,6 +173,7 @@
       }
       if (msgEl.classList.contains("info") || msgEl.classList.contains("empty-state")) C.hideMessage(msgEl);
       res.data.forEach(function (r) { listEl.appendChild(renderItem(r)); });
+      C.revealDoc("issue", listEl, msgEl);
     } catch (err) {
       C.showMessage(msgEl, "error", "無法載入：" + C.describeError(err));
     } finally {

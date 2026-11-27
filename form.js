@@ -5,7 +5,93 @@
   var EXTERNAL_PURPOSES = ["提供給客戶", "廠商詢價或發包"];
 
   var form, deptSelect, deptOther, purposeSelect, purposeOther, formatOther,
-      externalNote, needDate, submitBtn, msg, itemsWarn, prefillNote, blurTimer, ctx;
+      externalNote, needDate, submitBtn, msg, itemsWarn, prefillNote, blurTimer, draftTimer, ctx;
+
+  // ---------- 草稿與上次的部門：只存在這台手機上，依登入帳號分開 ----------
+  function draftKey() { return "drawing-request.draft." + ctx.profile.id; }
+  function deptKey() { return "drawing-request.last-dept." + ctx.profile.id; }
+
+  function snapshot() {
+    return {
+      department: deptSelect.value, department_other: deptOther.value,
+      data_types: checked("data_types"), items: form.elements.items.value,
+      purpose: purposeSelect.value, purpose_other: purposeOther.value,
+      formats: checked("formats"), format_other: formatOther.value,
+      need_date: needDate.value, external_note: form.elements.external_note.value,
+    };
+  }
+  // 只有部門被自動帶入、其他都沒填：不算草稿
+  function isBlank(d) {
+    return !d.data_types.length && !d.items.trim() && !d.purpose && !d.formats.length &&
+      !d.need_date && !d.external_note.trim();
+  }
+  function saveDraft() {
+    var d = snapshot();
+    if (isBlank(d)) { C.store.remove(draftKey()); return; }
+    d.saved_at = new Date().toISOString();
+    C.store.set(draftKey(), d);
+  }
+  function scheduleSave() {
+    clearTimeout(draftTimer);
+    draftTimer = setTimeout(saveDraft, 400);
+  }
+  function setChecks(name, values) {
+    Array.prototype.forEach.call(form.querySelectorAll('input[name="' + name + '"]'), function (i) {
+      i.checked = (values || []).indexOf(i.value) !== -1;
+    });
+  }
+  function hasDept(id) {
+    return ctx.departments.some(function (d) { return String(d.id) === String(id); });
+  }
+  // 帶入上次送出時選的部門
+  function applyLastDept() {
+    var last = C.store.get(deptKey());
+    if (!last || !hasDept(last.id)) return;
+    deptSelect.value = String(last.id);
+    updateOthers();
+    deptOther.value = last.other || "";
+  }
+  function applyDraft(d) {
+    deptSelect.value = hasDept(d.department) ? String(d.department) : "";
+    setChecks("data_types", d.data_types);
+    setChecks("formats", d.formats);
+    form.elements.items.value = d.items || "";
+    purposeSelect.value = d.purpose || "";
+    updateOthers();
+    deptOther.value = d.department_other || "";
+    purposeOther.value = d.purpose_other || "";
+    formatOther.value = d.format_other || "";
+    needDate.value = d.need_date && d.need_date >= C.todayTaipei() ? d.need_date : "";
+    form.elements.external_note.value = d.external_note || "";
+    updateItemsCount();
+  }
+  // 清空表單（保留上次的部門），並刪掉草稿
+  function clearForm() {
+    form.reset();
+    ["department", "data_types", "items", "purpose", "formats", "need_date"].forEach(function (k) { setError(k, ""); });
+    showDuplicateWarning([]);
+    prefillNote.hidden = true;
+    C.store.remove(draftKey());
+    setDefaults();
+    updateOthers();
+    applyLastDept();
+  }
+  // 開啟頁面時：有沒送出的草稿就還原，並告訴使用者可以清除
+  function restoreDraft() {
+    var d = C.store.get(draftKey());
+    if (!d || isBlank(d)) { applyLastDept(); return; }
+    applyDraft(d);
+    var when = d.saved_at ? C.formatTime(d.saved_at) : "";
+    prefillNote.className = "message info prefill-note";
+    prefillNote.replaceChildren();
+    prefillNote.appendChild(C.el("span", "message-text", "已還原上次還沒送出的內容" + (when ? "（" + when + "）" : "") + "。"));
+    var clear = C.el("button", "message-link", "清除重填");
+    clear.type = "button";
+    clear.id = "draft-clear";
+    clear.addEventListener("click", function () { clearForm(); deptSelect.focus(); });
+    prefillNote.appendChild(clear);
+    prefillNote.hidden = false;
+  }
 
   function checked(name) {
     return Array.prototype.slice.call(form.querySelectorAll('input[name="' + name + '"]:checked'))
@@ -140,9 +226,13 @@
       }
       var docNo = res.data;
       C.triggerNotify();
+      C.store.set(deptKey(), { id: r.data.p_department_id, other: r.data.p_department_other || "" });
+      clearTimeout(draftTimer);
+      C.store.remove(draftKey());
       form.reset();
       setDefaults();
       updateOthers();
+      applyLastDept();
       showDuplicateWarning([]);
       prefillNote.hidden = true;
       C.showMessage(msg, "success", "");
@@ -207,9 +297,11 @@
     checkItemsOnBlur();
 
     var reason = r.stage2_reason || r.stage1_reason;
+    prefillNote.className = "message info prefill-note";
     prefillNote.textContent = "已帶入 " + r.doc_no + " 的內容，請修改後送出，會成為一張新的申請。" +
       (reason ? "上次的駁回原因：" + reason : "");
     prefillNote.hidden = false;
+    saveDraft();
     window.scrollTo(0, 0);
   }
 
@@ -260,7 +352,11 @@
       blurTimer = setTimeout(checkItemsOnBlur, 350);
     });
     form.addEventListener("submit", onSubmit);
+    // 每次修改都自動暫存草稿（停手 0.4 秒後存）
+    form.addEventListener("input", scheduleSave);
+    form.addEventListener("change", scheduleSave);
     updateOthers();
+    restoreDraft();
   }
 
   window.RequestForm = { init: init, prefill: prefill };

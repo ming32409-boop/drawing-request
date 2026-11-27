@@ -51,6 +51,9 @@ const rpcArgs = {
   deliver_request: `p_request_id => ($1::jsonb->>'p_request_id')::uuid, p_method => $1::jsonb->>'p_method',
     p_method_other => $1::jsonb->>'p_method_other', p_note => $1::jsonb->>'p_note'`,
   dashboard_data: `p_from => ($1::jsonb->>'p_from')::date, p_to => ($1::jsonb->>'p_to')::date`,
+  search_requests: `p_q => $1::jsonb->>'p_q', p_status => $1::jsonb->>'p_status',
+    p_department_id => ($1::jsonb->>'p_department_id')::smallint, p_limit => ($1::jsonb->>'p_limit')::int,
+    p_offset => ($1::jsonb->>'p_offset')::int`,
   review_request: `p_request_id => ($1::jsonb->>'p_request_id')::uuid, p_approve => ($1::jsonb->>'p_approve')::boolean,
     p_reason => $1::jsonb->>'p_reason'`,
 };
@@ -608,6 +611,65 @@ async function api(route) {
   ok(await pg.locator('#dash-link').isHidden(), 'applicant has no 管理看板 link');
   await pg.context().close();
 
+  // ---------- 申請查詢 ----------
+  // 一般申請人沒有查詢分頁
+  pg = await openAs(U.app, PAGE + '?tab=search');
+  ok(await pg.locator('a[data-tab=search]').isHidden() && await pg.locator('#view-new').isVisible(), 'applicant: no search tab, ?tab=search falls back');
+  await pg.context().close();
+  // 部門主管：只查得到自己管理的部門
+  const mgrDepts = (await pool.query(`select count(*)::int n from public.requests r join public.departments d on d.id = r.department_id where d.manager_id = $1`, [U.mgr])).rows[0].n;
+  const ps = await openAs(U.mgr, PAGE + '?tab=search');
+  await ps.waitForSelector('#view-search:not([hidden]) #search-list .request-item');
+  ok((await ps.textContent('#search-count')).includes('共 ' + mgrDepts + ' 筆') && (await ps.textContent('#search-scope')).includes('品管課'),
+     'manager search scope is own departments (' + mgrDepts + ')');
+  ok((await ps.locator('#search-list .request-item').count()) === Math.min(20, mgrDepts) && await ps.locator('#search-list .copy-request, #search-list .danger').count() === 0,
+     'search results are read-only cards');
+  // 關鍵字：單號
+  const someDoc = (await pool.query(`select doc_no from public.requests where items like 'RV-0001%'`)).rows[0].doc_no;
+  await ps.fill('#search-q', someDoc);
+  await ps.press('#search-q', 'Enter');
+  await ps.waitForFunction(d => document.querySelectorAll('#search-list .request-item').length === 1 && document.querySelector('#search-list .request-item').dataset.doc === d, someDoc);
+  ok(true, 'search by doc number finds one');
+  // 狀態篩選
+  await ps.fill('#search-q', '');
+  await ps.click('#view-search .status-filter button[data-status="已駁回"]');
+  await ps.waitForFunction(() => document.querySelector('#search-list .request-item') && [...document.querySelectorAll('#search-list .badge.status')].every(b => b.textContent === '已駁回'));
+  ok(true, 'status filter shows only 已駁回');
+  // 找不到
+  await ps.fill('#search-q', '不存在的品號ZZZ');
+  await ps.press('#search-q', 'Enter');
+  await ps.waitForSelector('#search-message.empty-state');
+  ok((await ps.textContent('#search-message')).includes('找不到'), 'empty search result explained');
+  if (process.env.SHOT_DIR) { await ps.fill('#search-q', ''); await ps.click('#view-search .status-filter button[data-status=""]'); await ps.waitForSelector('#search-list .request-item'); await ps.screenshot({ path: process.env.SHOT_DIR + '/search.png', fullPage: true }); }
+  await ps.context().close();
+  // 核發主管：查得到全部
+  const searchAllN = (await pool.query('select count(*)::int n from public.requests')).rows[0].n;
+  const ps2 = await openAs(ISS, PAGE + '?tab=search');
+  await ps2.waitForSelector('#view-search:not([hidden]) #search-list .request-item');
+  ok((await ps2.textContent('#search-count')).includes('共 ' + searchAllN + ' 筆') && (await ps2.textContent('#search-scope')).includes('全部'), 'issuer searches all (' + searchAllN + ')');
+  if (searchAllN > 20) {
+    await ps2.click('#search-more');
+    await ps2.waitForFunction(n => document.querySelectorAll('#search-list .request-item').length === Math.min(40, n), searchAllN);
+    ok(true, 'load more appends next page');
+  }
+  await ps2.context().close();
+
+  // ---------- 待我簽核：急迫度 ----------
+  const today = new Date(Date.now() + 8 * 3600000).toISOString().slice(0, 10);
+  const urgentDoc = (await asUser(U.app, `select public.submit_request((select id from public.departments where name = '品管課'), null, array['圖面'],
+      'URG-1/今天要的零件', '設計參考', null, array['2D PDF'], null, $1::date, null) as d`, [today]))[0].d;
+  await pool.query(`update public.requests set created_at = now() - interval '3 days' where items like 'RV-0002%' and status = '申請主管簽核中'`);
+  const pu = await openAs(U.mgr, PAGE + '?tab=review');
+  await pu.waitForSelector('#view-review:not([hidden]) .review-item');
+  const firstItem = pu.locator('#review-list .review-item').first();
+  ok(await firstItem.getAttribute('data-doc') === urgentDoc && (await firstItem.locator('.u-over').textContent()).includes('今天就要'),
+     'urgent request (needed today) sorted first with red chip');
+  ok(await firstItem.locator('.card-detail').isHidden() && await firstItem.locator('button.approve').isVisible(), 'card shows summary and actions, details collapsed');
+  await firstItem.locator('.detail-toggle').click();
+  ok(await firstItem.locator('.card-detail').isVisible() && (await firstItem.locator('.detail-toggle').textContent()).includes('收起'), 'details expand on tap');
+  if (process.env.SHOT_DIR) await pu.screenshot({ path: process.env.SHOT_DIR + '/review-urgency.png', fullPage: true });
+  await pu.context().close();
+
   // ---------- 管理設定（系統管理員） ----------
   const ADM = 'aaaaaaaa-0000-4000-8000-000000000009', NEWBIE = 'aaaaaaaa-0000-4000-8000-000000000010';
   await pool.query(`insert into auth.users values ('${ADM}'), ('${NEWBIE}');
@@ -725,6 +787,7 @@ async function api(route) {
     ['mine', U.app, PAGE + '?tab=mine', '#mine-list .request-item'],
     ['review', RWD, PAGE + '?tab=review', '#view-review:not([hidden]) :is(.request-item, .empty-state)'],
     ['issue', RWD, PAGE + '?tab=issue', '#view-issue:not([hidden]) :is(.request-item, .empty-state)'],
+    ['search', RWD, PAGE + '?tab=search', '#view-search:not([hidden]) #search-list .request-item'],
     ['admin', RWD, PAGE + '?tab=admin', '#view-admin:not([hidden]) .user-row'],
     ['dash', RWD, PAGE + 'dashboard.html', '#tiles .tile'],
   ];

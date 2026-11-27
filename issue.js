@@ -58,6 +58,17 @@
     top.appendChild(C.el("span", "badge status s-issue", "待文管發放"));
     box.appendChild(top);
 
+    // 摘要：要發什麼、什麼格式、急不急；發放表單直接可填，完整明細收在「查看明細」
+    var deptName = (r.department ? r.department.name : "") + (r.department_other ? "（" + r.department_other + "）" : "");
+    box.appendChild(C.el("p", "item-summary", C.itemsSummary(r.items)));
+    box.appendChild(C.el("p", "item-meta", (r.applicant ? r.applicant.display_name : "") + "（" + deptName + "）・" +
+      r.data_types.join("、") + "・" + r.formats.map(function (f) {
+        return f === "其他" && r.format_other ? "其他（" + r.format_other + "）" : f;
+      }).join("、")));
+    var u = C.urgency(r.stage2_at || r.created_at, r.need_date);
+    li.urgency = u;
+    box.appendChild(u.el);
+
     var dl = C.el("dl", "detail");
     var dept = (r.department ? r.department.name : "") + (r.department_other ? "（" + r.department_other + "）" : "");
     row(dl, "申請人", (r.applicant ? r.applicant.display_name : "") + "（" + dept + "）");
@@ -73,8 +84,11 @@
     var s2 = r.stage2_by_profile ? r.stage2_by_profile.display_name : "";
     row(dl, "第一關", r.stage1_result + (s1 ? "（" + s1 + "）" : ""));
     row(dl, "第二關", "已核准" + (s2 ? "（" + s2 + "，" + C.formatTime(r.stage2_at) + "）" : ""));
-    box.appendChild(dl);
-    box.appendChild(C.el("pre", "items-full", r.items));
+    var more = C.el("div", "card-detail");
+    more.appendChild(dl);
+    more.appendChild(C.el("pre", "items-full", r.items));
+    box.appendChild(C.detailToggle(more, "issue-detail-" + r.id));
+    box.appendChild(more);
 
     var form = C.el("div", "issue-form");
     var selId = "method-" + r.id;
@@ -172,7 +186,9 @@
         return;
       }
       if (msgEl.classList.contains("info") || msgEl.classList.contains("empty-state")) C.hideMessage(msgEl);
-      res.data.forEach(function (r) { listEl.appendChild(renderItem(r)); });
+      res.data.map(function (r) { return renderItem(r); })
+        .sort(function (a, b) { return C.compareUrgency(a.urgency, b.urgency); })
+        .forEach(function (li) { listEl.appendChild(li); });
       C.revealDoc("issue", listEl, msgEl);
     } catch (err) {
       C.showMessage(msgEl, "error", "無法載入：" + C.describeError(err));

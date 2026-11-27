@@ -85,7 +85,9 @@
     return ol;
   }
 
-  function renderItem(r) {
+  // 申請單卡片。opts.readonly：不顯示撤回、複製（查詢頁用）；opts.showApplicant：顯示申請人與部門
+  function renderItem(r, opts) {
+    opts = opts || {};
     var li = C.el("li", "request-item");
     li.dataset.doc = r.doc_no;
     var head = C.el("button", "item-head");
@@ -100,7 +102,9 @@
     var more = r.items.split("\n").length - 1;
     head.appendChild(C.el("p", "item-summary", firstLine + (more > 0 ? "（另 " + more + " 筆）" : "")));
     var metaRow = C.el("div", "item-meta-row");
-    metaRow.appendChild(C.el("p", "item-meta", r.data_types.join("、") + "・" + C.formatTime(r.created_at)));
+    var who = opts.showApplicant && r.applicant
+      ? r.applicant.display_name + "（" + (r.department ? r.department.name : "") + "）・" : "";
+    metaRow.appendChild(C.el("p", "item-meta", who + r.data_types.join("、") + "・" + C.formatTime(r.created_at)));
     var chev = C.el("span", "chev");
     chev.setAttribute("aria-hidden", "true");
     metaRow.appendChild(chev);
@@ -111,6 +115,7 @@
     var detail = C.el("div", "item-detail");
     detail.hidden = true;
     var dl = C.el("dl", "detail");
+    if (opts.showApplicant && r.applicant) row(dl, "申請人", r.applicant.display_name);
     row(dl, "所屬部門", withOther(r.department ? r.department.name : "", r.department_other));
     row(dl, "申請資料別", r.data_types.join("、"));
     row(dl, "申請用途", withOther(r.purpose, r.purpose_other));
@@ -135,14 +140,14 @@
     detail.appendChild(itemsBox);
     var events = C.el("div", "events");
     detail.appendChild(events);
-    if (r.status === "申請主管簽核中" && r.stage1_result === "待簽核") {
+    if (!opts.readonly && r.status === "申請主管簽核中" && r.stage1_result === "待簽核") {
       var wbtn = C.el("button", "danger", "撤回申請");
       wbtn.type = "button";
       wbtn.addEventListener("click", function () { withdraw(r, wbtn); });
       detail.appendChild(wbtn);
     }
     // 被駁回或已撤回的申請：把內容帶回表單，修改後送出成為新的申請
-    if ((r.status === "已駁回" || r.status === "已撤回") && ctx.onCopy) {
+    if (!opts.readonly && (r.status === "已駁回" || r.status === "已撤回") && ctx.onCopy) {
       var cbtn = C.el("button", "secondary copy-request", "複製內容重新申請");
       cbtn.type = "button";
       cbtn.addEventListener("click", function () { ctx.onCopy(r); });
@@ -187,5 +192,5 @@
     refreshBtn.addEventListener("click", function () { C.hideMessage(msgEl); load(); });
   }
 
-  window.MyRequests = { init: init, load: load };
+  window.MyRequests = { init: init, load: load, renderCard: renderItem };
 })();

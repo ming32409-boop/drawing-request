@@ -11,8 +11,8 @@
   <meta property="og:description" content="開發部圖面資料申請與簽核：點開後用 LINE 登入即可申請、簽核或查看進度。">
   <meta property="og:type" content="website">
   <link rel="icon" type="image/svg+xml" href="icon.svg">
-  <link rel="stylesheet" href="theme.css?v=17">
-  <link rel="stylesheet" href="style.css?v=17">
+  <link rel="stylesheet" href="theme.css?v=18">
+  <link rel="stylesheet" href="style.css?v=18">
 </head>
 <body>
   <header class="app-bar">
@@ -45,6 +45,7 @@
     <a href="#mine" data-tab="mine">我的申請</a>
     <a href="#review" data-tab="review" hidden>待我簽核 <span id="review-count" class="count" hidden></span></a>
     <a href="#issue" data-tab="issue" hidden>文管發放 <span id="issue-count" class="count" hidden></span></a>
+    <a href="#search" data-tab="search" hidden>查詢</a>
     <a href="#admin" data-tab="admin" hidden>管理設定 <span id="admin-count" class="count" hidden></span></a>
   </nav>
 
@@ -209,6 +210,35 @@
       <ul id="issue-list" class="request-list"></ul>
     </section>
 
+    <!-- 申請查詢（部門主管、核發主管、文管） -->
+    <section id="view-search" class="list-view" hidden>
+      <div class="page-head">
+        <span class="eyebrow">申請查詢</span>
+        <h2>查詢申請</h2>
+        <p class="lead" id="search-scope"></p>
+      </div>
+      <form id="search-form" class="search-bar" role="search" novalidate>
+        <label for="search-q" class="visually-hidden">關鍵字</label>
+        <input type="text" id="search-q" placeholder="單號、品號或申請人" autocomplete="off" enterkeyhint="search">
+        <button type="submit" class="primary small">搜尋</button>
+      </form>
+      <div class="filter-row">
+        <div class="status-filter" role="group" aria-label="狀態">
+          <button type="button" data-status="" aria-pressed="true">全部</button>
+          <button type="button" data-status="進行中" aria-pressed="false">進行中</button>
+          <button type="button" data-status="已發放結案" aria-pressed="false">已發放</button>
+          <button type="button" data-status="已駁回" aria-pressed="false">已駁回</button>
+          <button type="button" data-status="已撤回" aria-pressed="false">已撤回</button>
+        </div>
+        <label for="search-dept" class="visually-hidden">部門</label>
+        <select id="search-dept"></select>
+      </div>
+      <p id="search-count" class="result-count" aria-live="polite"></p>
+      <div id="search-message" class="message" role="status" aria-live="polite" hidden></div>
+      <ul id="search-list" class="request-list"></ul>
+      <button type="button" id="search-more" class="secondary load-more" hidden>載入更多</button>
+    </section>
+
     <!-- 管理設定（系統管理員） -->
     <section id="view-admin" class="list-view" hidden>
       <div class="page-head list-header">
@@ -257,14 +287,15 @@
 
   <script src="https://static.line-scdn.net/liff/edge/2/sdk.js" charset="utf-8"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
-  <script src="config.js?v=17"></script>
-  <script src="auth.js?v=17"></script>
-  <script src="common.js?v=17"></script>
-  <script src="form.js?v=17"></script>
-  <script src="mine.js?v=17"></script>
-  <script src="review.js?v=17"></script>
-  <script src="issue.js?v=17"></script>
-  <script src="admin.js?v=17"></script>
-  <script src="app.js?v=17"></script>
+  <script src="config.js?v=18"></script>
+  <script src="auth.js?v=18"></script>
+  <script src="common.js?v=18"></script>
+  <script src="form.js?v=18"></script>
+  <script src="mine.js?v=18"></script>
+  <script src="review.js?v=18"></script>
+  <script src="issue.js?v=18"></script>
+  <script src="search.js?v=18"></script>
+  <script src="admin.js?v=18"></script>
+  <script src="app.js?v=18"></script>
 </body>
 </html>

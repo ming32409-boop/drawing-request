@@ -110,11 +110,72 @@
         return;
       }
       if (!p.shownAt) p.shownAt = Date.now();
-      var head = item.querySelector('.item-head[aria-expanded="false"]');
+      var head = item.querySelector('.item-head[aria-expanded="false"], .detail-toggle[aria-expanded="false"]');
       if (head) head.click();
       item.classList.add("spotlight");
       setTimeout(function () { item.classList.remove("spotlight"); }, 2600);
       requestAnimationFrame(function () { item.scrollIntoView({ block: "start", behavior: "smooth" }); });
+    },
+    // 「明細」展開鈕：卡片預設只顯示摘要與動作，按下才展開完整明細
+    detailToggle: function (panel, id) {
+      var btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "detail-toggle";
+      btn.setAttribute("aria-expanded", "false");
+      btn.setAttribute("aria-controls", id);
+      panel.id = id;
+      panel.hidden = true;
+      var label = document.createElement("span");
+      label.textContent = "查看明細";
+      btn.appendChild(label);
+      var chev = document.createElement("span");
+      chev.className = "chev";
+      chev.setAttribute("aria-hidden", "true");
+      btn.appendChild(chev);
+      btn.addEventListener("click", function () {
+        panel.hidden = !panel.hidden;
+        btn.setAttribute("aria-expanded", String(!panel.hidden));
+        label.textContent = panel.hidden ? "查看明細" : "收起明細";
+      });
+      return btn;
+    },
+    // 品號第一筆＋另幾筆
+    itemsSummary: function (items) {
+      var lines = String(items || "").split("\n").filter(function (l) { return l.trim(); });
+      return (lines[0] || "") + (lines.length > 1 ? "（另 " + (lines.length - 1) + " 筆）" : "");
+    },
+    // ---------- 急迫度：已等多久、離需要日期還有幾天 ----------
+    // since：這一關開始等的時間（第一關＝送出、第二關＝第一關核准、發放＝第二關核准）
+    // 回傳 { el: 標籤列, score: 越小越急, need: 需要日期, since }，清單用 compareUrgency 排序
+    urgency: function (since, needDate) {
+      var box = document.createElement("div");
+      box.className = "urgency";
+      var score = 3;
+      var hours = since ? Math.max(0, (Date.now() - new Date(since).getTime()) / 3600000) : 0;
+      var wait = hours < 1 ? "等待不到 1 小時" : hours < 24 ? "已等 " + Math.floor(hours) + " 小時" : "已等 " + Math.floor(hours / 24) + " 天";
+      var w = document.createElement("span");
+      w.className = "u-chip u-wait" + (hours >= 48 ? " u-late" : "");
+      w.textContent = wait;
+      box.appendChild(w);
+      if (hours >= 48) score = 2;
+      var need = needDate ? String(needDate).slice(0, 10) : "";
+      if (need) {
+        var days = Math.round((Date.parse(need + "T00:00:00Z") - Date.parse(this.todayTaipei() + "T00:00:00Z")) / 86400000);
+        var n = document.createElement("span");
+        var md = need.slice(5).replace("-", "/");
+        if (days < 0) { n.className = "u-chip u-need u-over"; n.textContent = "需要日期已過 " + (-days) + " 天"; score = 0; }
+        else if (days === 0) { n.className = "u-chip u-need u-over"; n.textContent = "今天就要（" + md + "）"; score = 0; }
+        else if (days <= 2) { n.className = "u-chip u-need u-soon"; n.textContent = "需要日期剩 " + days + " 天（" + md + "）"; score = Math.min(score, 1); }
+        else { n.className = "u-chip u-need"; n.textContent = "需要 " + md; }
+        box.appendChild(n);
+      }
+      return { el: box, score: score, need: need || "9999-12-31", since: since || "" };
+    },
+    // 排序：需要日期已到或快到的最前面，再來是等超過 2 天的，其餘依等待時間（越久越前面）
+    compareUrgency: function (a, b) {
+      if (a.score !== b.score) return a.score - b.score;
+      if (a.score <= 1 && a.need !== b.need) return a.need < b.need ? -1 : 1;
+      return a.since < b.since ? -1 : a.since > b.since ? 1 : 0;
     },
     // 文字裡的 http(s) 網址變成可以點的連結（其餘一律當純文字，避免 XSS）
     linkify: function (text) {

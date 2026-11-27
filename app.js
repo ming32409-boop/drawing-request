@@ -4,7 +4,7 @@
   var C = window.Common;
   var statusEl = document.getElementById("status");
   var retryBtn = document.getElementById("retry-btn");
-  var views = { status: "view-status", new: "view-new", mine: "view-mine", review: "view-review", issue: "view-issue", admin: "view-admin" };
+  var views = { status: "view-status", new: "view-new", mine: "view-mine", review: "view-review", issue: "view-issue", search: "view-search", admin: "view-admin" };
   var ready = false;
 
   function showView(name) {
@@ -20,6 +20,7 @@
     if (name === "mine") window.MyRequests.load();
     if (name === "review") window.ReviewQueue.load();
     if (name === "issue") window.IssueQueue.load();
+    if (name === "search") window.SearchPanel.load();
     if (name === "admin") window.AdminPanel.load();
   }
 
@@ -46,6 +47,7 @@
     var tab = location.hash.replace("#", "");
     if (tab === "review" && !window.ReviewQueue.canReview()) tab = "new";
     if (tab === "issue" && !window.IssueQueue.canIssue()) tab = "new";
+    if (tab === "search" && !window.SearchPanel.canSearch()) tab = "new";
     if (tab === "admin" && !window.AdminPanel.canAdmin()) tab = "new";
     showView(views[tab] && tab !== "status" ? tab : "new");
   }
@@ -104,6 +106,7 @@
       }));
       window.ReviewQueue.init(ctx);
       window.IssueQueue.init(ctx);
+      window.SearchPanel.init(ctx);
       window.AdminPanel.init(ctx);
 
       document.getElementById("tabs").hidden = false;

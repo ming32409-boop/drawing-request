@@ -216,6 +216,26 @@ ok(val(f"with u as (update profiles set is_dcc=true where id='{U['off']}' return
    val(f"select count(*) from notifications where kind='帳號已開通' and recipient_id='{U['off']}'", role=None) == '1', 'role changes do not re-notify')
 expect_err(f"select _guard_profile_update()", U['admin'], 'permission denied', 'guard functions not callable')
 
+# 申請查詢（009）：範圍沿用 RLS
+def total(uid, args=''):
+    return val(f"select search_requests({args})->>'total'", uid)
+ok(total(U['app']) == val(f"select count(*) from requests where applicant_id='{U['app']}'", role=None), 'search: applicant sees only own requests')
+ok(total(U['qcmgr']) == val(f"select count(*) from requests where department_id={QC} or applicant_id='{U['qcmgr']}'", role=None), 'search: department manager sees own department')
+ok(total(U['devmgr']) == val("select count(*) from requests", role=None), 'search: issuer sees all')
+ok(total(U['dcc1']) == val("select count(*) from requests", role=None), 'search: dcc sees all')
+ok(total(U['devmgr'], "p_status => '進行中'") == val("select count(*) from requests where status in ('申請主管簽核中','核發主管簽核中','待文管發放')", role=None), 'search: 進行中 filter')
+ok(total(U['devmgr'], "p_status => '已駁回'") == val("select count(*) from requests where status='已駁回'", role=None), 'search: status filter')
+ok(total(U['devmgr'], f"p_department_id => {QC}::smallint") == val(f"select count(*) from requests where department_id={QC}", role=None), 'search: department filter')
+D1 = val(f"select doc_no from requests where id='{R1}'", role=None)
+ok(total(U['devmgr'], f"p_q => '{D1[-7:]}'") == '1', 'search: by doc number')
+ok(total(U['devmgr'], "p_q => 'ab-cd-123456'") == val("select count(*) from requests where items ilike '%ab-cd-123456%'", role=None), 'search: by part number, case-insensitive')
+ok(total(U['devmgr'], "p_q => '示範app'") == val("select count(*) from requests r join profiles a on a.id=r.applicant_id where a.display_name like '示範app%'", role=None), 'search: by applicant name (partial match)')
+ok(total(U['devmgr'], "p_q => '%'") == '0', 'search: % is literal, not a wildcard')
+ok(val("select jsonb_array_length(search_requests(p_limit => 2)->'rows')", U['devmgr']) == '2', 'search: limit')
+ok(val("select (search_requests(p_limit => 1, p_offset => 1)->'rows'->0->>'doc_no') = (search_requests(p_limit => 2)->'rows'->1->>'doc_no')", U['devmgr']) == 't', 'search: offset pages')
+ok(val("select search_requests(p_limit => 1)->'rows'->0->'applicant'->>'display_name' is not null", U['devmgr']) == 't', 'search: rows include applicant name')
+expect_err("select search_requests()", None, 'permission denied', 'search: anon cannot call', role='anon')
+
 # concurrency of doc numbers
 import concurrent.futures as cf
 with cf.ThreadPoolExecutor(8) as ex:

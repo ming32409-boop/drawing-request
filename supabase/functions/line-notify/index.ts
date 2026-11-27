@@ -81,7 +81,11 @@ function itemsSummary(items: string): string {
 export function buildMessage(n: Notice): string {
   if (n.kind === "新帳號待啟用") {
     return [`【新帳號待啟用】${n.subject_name ?? "有同仁"} 剛用 LINE 登入圖面資料申請`,
-      "請為這個帳號開通並設定角色；開通後請對方重新開啟頁面。"].join("\n");
+      "請為這個帳號開通並設定角色；開通後系統會通知對方。", "", `開通：${link("admin")}`].join("\n");
+  }
+  if (n.kind === "帳號已開通") {
+    const hello = n.subject_name ? `${n.subject_name} 你好，` : "";
+    return [`【帳號已開通】${hello}你的圖面資料申請帳號已開通，可以開始使用了。`, "", `開始使用：${link("new")}`].join("\n");
   }
   const summary = [
     `單號：${n.doc_no}`,

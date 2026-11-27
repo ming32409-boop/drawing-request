@@ -199,6 +199,23 @@ ok(val(f"select kind||'|'||subject_name||'|'||(doc_no is null)::text from claim_
 expect_err(f"insert into notifications (recipient_id, kind) values ('{U['admin']}', '新帳號待啟用')", None, 'notifications_target_check', 'new-account notice requires subject', role=None)
 expect_err(f"select _notify_new_account()", U['admin'], 'permission denied', 'trigger function not callable')
 
+# 管理設定的防呆（008）
+expect_err(f"update profiles set is_admin=false where id='{U['admin']}'", U['admin'], '至少要保留一位', 'cannot remove the last admin')
+expect_err(f"update profiles set active=false where id='{U['admin']}'", U['admin'], '至少要保留一位', 'cannot deactivate the last admin')
+ok(val(f"with u as (update profiles set is_admin=true where id='{U['app2']}' returning 1) select count(*) from u", U['admin']) == '1', 'admin grants admin to another user')
+ok(val(f"with u as (update profiles set is_admin=false where id='{U['admin']}' returning 1) select count(*) from u", U['admin']) == '1', 'admin can step down when another admin exists')
+ok(val(f"with u as (update profiles set is_admin=true where id='{U['admin']}' returning 1) select count(*) from u", U['app2']) == '1', 'new admin restores the first admin')
+expect_err(f"update profiles set active=false where id='{U['qcmgr']}'", U['admin'], '品管課', 'cannot deactivate a department manager')
+expect_err(f"update departments set manager_id='{U['off']}' where id={BUY}", U['admin'], '必須是已啟用', 'department manager must be active')
+ok(val(f"with u as (update departments set manager_id='{U['app2']}' where id={BUY} returning 1) select count(*) from u", U['admin']) == '1', 'admin sets department manager')
+# 啟用帳號 → 通知本人
+ok(val(f"with u as (update profiles set active=true where id='{U['off']}' returning 1) select count(*) from u", U['admin']) == '1', 'admin activates account')
+ok(val(f"select count(*) from notifications where kind='帳號已開通' and recipient_id='{U['off']}' and subject_id='{U['off']}'", role=None) == '1', 'activation notifies the user')
+ok(val(f"select kind||'|'||subject_name from claim_notifications(100) where kind='帳號已開通'", role='service_role') == '帳號已開通|示範off', 'claim returns activation notice')
+ok(val(f"with u as (update profiles set is_dcc=true where id='{U['off']}' returning 1) select count(*) from u", U['admin']) == '1' and
+   val(f"select count(*) from notifications where kind='帳號已開通' and recipient_id='{U['off']}'", role=None) == '1', 'role changes do not re-notify')
+expect_err(f"select _guard_profile_update()", U['admin'], 'permission denied', 'guard functions not callable')
+
 # concurrency of doc numbers
 import concurrent.futures as cf
 with cf.ThreadPoolExecutor(8) as ex:

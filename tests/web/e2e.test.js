@@ -68,6 +68,27 @@ async function api(route) {
     if (u.pathname === '/functions/v1/line-login') return reply({ access_token: jwtFor(global.CURRENT), refresh_token: 'r', expires_at: 9999999999 });
     if (u.pathname === '/auth/v1/user') return reply({ id: uid, aud: 'authenticated', role: 'authenticated' });
     if (u.pathname.startsWith('/auth/v1/logout')) return route.fulfill({ status: 204, headers: H });
+    // 管理設定：列出全部帳號、修改角色、部門的新增與修改（都以登入者身分執行，權限與觸發器都是真的）
+    const SETTABLE = { profiles: ['active', 'is_admin', 'is_issuer', 'is_dcc'], departments: ['name', 'sort_order', 'active', 'manager_id'] };
+    const tbl = u.pathname.replace('/rest/v1/', '');
+    if (SETTABLE[tbl] && (q.method() === 'PATCH' || q.method() === 'POST')) {
+      const body = JSON.parse(q.postData());
+      const keys = Object.keys(body).filter(k => SETTABLE[tbl].includes(k));
+      const vals = keys.map(k => body[k]);
+      const ph = i => '$' + String(i + 1);
+      const rows = q.method() === 'PATCH'
+        ? await asUser(uid, 'update public.' + tbl + ' set ' + keys.map((k, i) => k + ' = ' + ph(i)).join(', ') +
+            ' where id = ' + ph(keys.length) + ' returning id', [...vals, p.get('id').slice(3)])
+        : await asUser(uid, 'insert into public.' + tbl + ' (' + keys.join(', ') + ') values (' +
+            keys.map((k, i) => ph(i)).join(', ') + ') returning id', vals);
+      return reply(rows, q.method() === 'POST' ? 201 : 200);
+    }
+    if (u.pathname === '/rest/v1/profiles' && !p.get('id')) {
+      return reply(await asUser(uid, 'select id, display_name, is_admin, is_issuer, is_dcc, active, created_at from public.profiles'));
+    }
+    if (u.pathname === '/rest/v1/departments' && (p.get('select') || '').includes('sort_order')) {
+      return reply(await asUser(uid, 'select id, name, sort_order, active, manager_id from public.departments order by sort_order, id'));
+    }
     if (u.pathname === '/rest/v1/profiles') {
       const rows = await asUser(uid, 'select id, display_name, is_admin, is_issuer, is_dcc, active from public.profiles where id = $1', [p.get('id').slice(3)]);
       return q.headers()['accept'].includes('object') ? (rows.length ? reply(rows[0]) : reply({ code: 'PGRST116', message: 'no rows' }, 406)) : reply(rows);
@@ -587,6 +608,77 @@ async function api(route) {
   ok(await pg.locator('#dash-link').isHidden(), 'applicant has no 管理看板 link');
   await pg.context().close();
 
+  // ---------- 管理設定（系統管理員） ----------
+  const ADM = 'aaaaaaaa-0000-4000-8000-000000000009', NEWBIE = 'aaaaaaaa-0000-4000-8000-000000000010';
+  await pool.query(`insert into auth.users values ('${ADM}'), ('${NEWBIE}');
+    insert into public.profiles (id, line_user_id, display_name, active, is_admin) values ('${ADM}', 'U${'a'.repeat(32)}', '示範管理員', true, true);
+    insert into public.profiles (id, line_user_id, display_name, active) values ('${NEWBIE}', 'U${'b'.repeat(32)}', '示範新同仁', false);`);
+  ok((await pool.query(`select count(*)::int n from public.notifications where kind = '新帳號待啟用' and subject_id = '${NEWBIE}' and recipient_id = '${ADM}'`)).rows[0].n === 1,
+     'new account queues a notice for the admin');
+  // 非管理員看不到，?tab=admin 退回新增申請
+  pg = await openAs(U.app, PAGE + '?tab=admin');
+  ok(await pg.locator('a[data-tab=admin]').isHidden() && await pg.locator('#view-new').isVisible(), 'non-admin: no admin tab, ?tab=admin falls back');
+  await pg.context().close();
+
+  const pa = await openAs(ADM, PAGE + '?tab=admin');
+  await pa.waitForSelector('#view-admin:not([hidden]) .pending-row');
+  ok(await pa.textContent('#admin-count') === '2' && await pa.locator('.pending-row').count() === 2, 'admin sees pending accounts with count badge');
+  // 一鍵啟用：通知本人，並自動展開角色設定
+  const nAct = notifyCalls;
+  await pa.click(`.pending-row[data-id="${NEWBIE}"] button.activate`);
+  await pa.waitForSelector(`.user-row[data-id="${NEWBIE}"] .user-head[aria-expanded="true"]`);
+  ok((await pa.textContent('#admin-message')).includes('已啟用 示範新同仁') && await pa.textContent('#admin-count') === '1', 'activate moves user to list and updates count');
+  ok((await pool.query(`select active from public.profiles where id = '${NEWBIE}'`)).rows[0].active &&
+     (await pool.query(`select count(*)::int n from public.notifications where kind = '帳號已開通' and recipient_id = '${NEWBIE}'`)).rows[0].n === 1 &&
+     notifyCalls > nAct, 'activation saved and user notified');
+  // 設定角色：開關即時儲存
+  await pa.locator(`.user-row[data-id="${NEWBIE}"] input.switch[data-field="is_dcc"]`).check();
+  await pa.waitForFunction(() => document.getElementById('admin-message').textContent.includes('文管 已開啟'));
+  ok((await pool.query(`select is_dcc from public.profiles where id = '${NEWBIE}'`)).rows[0].is_dcc &&
+     (await pa.locator(`.user-row[data-id="${NEWBIE}"] .user-tags`).textContent()).includes('文管'), 'role switch saves and updates tags');
+  // 不能拿掉最後一位管理員（資料庫擋下，開關恢復原狀）
+  await pa.click(`.user-row[data-id="${ADM}"] .user-head`);
+  await pa.locator(`.user-row[data-id="${ADM}"] input.switch[data-field="is_admin"]`).uncheck();
+  await pa.waitForSelector('#admin-message.error');
+  ok((await pa.textContent('#admin-message')).includes('至少要保留一位') &&
+     await pa.locator(`.user-row[data-id="${ADM}"] input.switch[data-field="is_admin"]`).isChecked() &&
+     (await pool.query(`select is_admin from public.profiles where id = '${ADM}'`)).rows[0].is_admin, 'cannot remove the last admin; switch reverts');
+  // 搜尋
+  await pa.fill('#admin-search', '新同仁');
+  ok(await pa.locator('#admin-user-list .user-row').count() === 1, 'search filters users');
+  await pa.fill('#admin-search', '');
+  if (process.env.SHOT_DIR) await pa.screenshot({ path: process.env.SHOT_DIR + '/admin-users.png', fullPage: true });
+  // 部門主管
+  await pa.click('#admin-tab-depts');
+  const buyRow = pa.locator('.dept-row', { has: pa.locator('.dept-name', { hasText: /^採購課$/ }) });
+  ok((await buyRow.textContent()).includes('未設定主管'), 'department without manager is flagged');
+  await buyRow.locator('select.dept-manager').selectOption(NEWBIE);
+  await pa.waitForFunction(() => document.getElementById('admin-message').textContent.includes('部門主管已設為'));
+  ok((await pool.query(`select p.display_name from public.departments d join public.profiles p on p.id = d.manager_id where d.name = '採購課'`)).rows[0].display_name === '示範新同仁',
+     'admin sets department manager');
+  // 停用部門主管前要先換人
+  await pa.click('#admin-tab-users');
+  await pa.click(`.user-row[data-id="${NEWBIE}"] .user-head`);
+  ok(await pa.locator('#admin-user-list .user-head[aria-expanded="true"]').count() === 1, 'only one user expanded at a time');
+  await pa.locator(`.user-row[data-id="${NEWBIE}"] input.switch[data-field="active"]`).uncheck();
+  await pa.waitForSelector('#admin-message.error');
+  ok((await pa.textContent('#admin-message')).includes('採購課') && (await pool.query(`select active from public.profiles where id = '${NEWBIE}'`)).rows[0].active,
+     'cannot deactivate a department manager');
+  // 新增部門
+  await pa.click('#admin-tab-depts');
+  await pa.click('#admin-dept-add button[type=submit]');
+  ok((await pa.textContent('#admin-dept-error')).includes('請填寫'), 'new department requires a name');
+  await pa.fill('#admin-dept-name', '採購課');
+  await pa.click('#admin-dept-add button[type=submit]');
+  ok((await pa.textContent('#admin-dept-error')).includes('已經有'), 'duplicate department name rejected');
+  await pa.fill('#admin-dept-name', '示範工務課');
+  await pa.click('#admin-dept-add button[type=submit]');
+  await pa.waitForSelector('.dept-row .dept-name:text-is("示範工務課")');
+  const nd = (await pool.query(`select sort_order, active from public.departments where name = '示範工務課'`)).rows[0];
+  ok(nd && nd.active && nd.sort_order < 99, 'admin adds a department (sorted before 其他)');
+  if (process.env.SHOT_DIR) await pa.screenshot({ path: process.env.SHOT_DIR + '/admin-depts.png', fullPage: true });
+  await pa.context().close();
+
   // ---------- 響應式（RWD）：從小手機到大螢幕，每個畫面都不能橫向捲動或超出畫面 ----------
   // 用「所有角色＋很長的名字」的帳號，讓頂部列與分頁處在最擠的情況
   const RWD = 'aaaaaaaa-0000-4000-8000-000000000007';
@@ -633,6 +725,7 @@ async function api(route) {
     ['mine', U.app, PAGE + '?tab=mine', '#mine-list .request-item'],
     ['review', RWD, PAGE + '?tab=review', '#view-review:not([hidden]) :is(.request-item, .empty-state)'],
     ['issue', RWD, PAGE + '?tab=issue', '#view-issue:not([hidden]) :is(.request-item, .empty-state)'],
+    ['admin', RWD, PAGE + '?tab=admin', '#view-admin:not([hidden]) .user-row'],
     ['dash', RWD, PAGE + 'dashboard.html', '#tiles .tile'],
   ];
   for (const w of [320, 375, 414, 768, 1024, 1280, 1440]) {

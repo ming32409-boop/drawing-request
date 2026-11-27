@@ -4,7 +4,7 @@
   var C = window.Common;
   var statusEl = document.getElementById("status");
   var retryBtn = document.getElementById("retry-btn");
-  var views = { status: "view-status", new: "view-new", mine: "view-mine", review: "view-review", issue: "view-issue" };
+  var views = { status: "view-status", new: "view-new", mine: "view-mine", review: "view-review", issue: "view-issue", admin: "view-admin" };
   var ready = false;
 
   function showView(name) {
@@ -16,16 +16,37 @@
       if (a.dataset.tab === name) a.setAttribute("aria-current", "page");
       else a.removeAttribute("aria-current");
     });
+    updateTabsOverflow();
     if (name === "mine") window.MyRequests.load();
     if (name === "review") window.ReviewQueue.load();
     if (name === "issue") window.IssueQueue.load();
+    if (name === "admin") window.AdminPanel.load();
   }
+
+  // 分頁太多、手機放不下時：右邊淡出提示可以左右滑，並把目前的分頁捲進畫面
+  function updateTabsOverflow() {
+    var tabs = document.getElementById("tabs");
+    if (tabs.hidden) return;
+    var more = tabs.scrollWidth > tabs.clientWidth + 1;
+    tabs.classList.toggle("more", more && tabs.scrollLeft + tabs.clientWidth < tabs.scrollWidth - 4);
+    var active = tabs.querySelector("a.active");
+    if (more && active) {
+      var l = active.offsetLeft, r = l + active.offsetWidth;
+      if (l < tabs.scrollLeft || r > tabs.scrollLeft + tabs.clientWidth) tabs.scrollLeft = r - tabs.clientWidth + 24;
+    }
+  }
+  document.getElementById("tabs").addEventListener("scroll", function () {
+    var tabs = this;
+    tabs.classList.toggle("more", tabs.scrollLeft + tabs.clientWidth < tabs.scrollWidth - 4);
+  }, { passive: true });
+  window.addEventListener("resize", updateTabsOverflow);
 
   function route() {
     if (!ready) return;
     var tab = location.hash.replace("#", "");
     if (tab === "review" && !window.ReviewQueue.canReview()) tab = "new";
     if (tab === "issue" && !window.IssueQueue.canIssue()) tab = "new";
+    if (tab === "admin" && !window.AdminPanel.canAdmin()) tab = "new";
     showView(views[tab] && tab !== "status" ? tab : "new");
   }
 
@@ -83,6 +104,7 @@
       }));
       window.ReviewQueue.init(ctx);
       window.IssueQueue.init(ctx);
+      window.AdminPanel.init(ctx);
 
       document.getElementById("tabs").hidden = false;
       ready = true;

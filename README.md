@@ -62,6 +62,7 @@ Supabase secret key、LINE Channel secret、Channel access token **不可以**�
 - 內容：重點數字、①每月申請趨勢、②各關處理速度與目前等待中、③申請用途與外部用途（含常見外發對象）、④最常被調閱的品號、⑤駁回率與常見原因、各部門與各資料別件數。
 - 期間可選本月、近 3 個月、近 12 個月、今年、全部或自訂；「匯出 Excel」下載 CSV（含 BOM，Excel 直接開啟中文不亂碼；開頭是 = + - @ 的內容會加上 ' 避免被當成公式）。
 - 資料來自資料庫函式 `dashboard_data`、`export_requests`，函式內檢查角色。
+- 看板上方顯示「本月 LINE 通知」用量（已用／上限、進度條）：超過 80% 標黃、用完標紅，並顯示本月發送失敗的通知數。資料由 `line-notify` 向 LINE 查詢（`POST {"action":"quota"}`，需登入且為核發主管、文管或系統管理員），不受上方期間篩選影響。免費方案每月 200 則；每張申請約用「3＋文管人數」則。
 
 ## LINE 通知（Edge Function `line-notify`）
 - 資料庫函式在送出、簽核、發放時把通知寫入 `notifications`；網頁動作完成後呼叫 `line-notify`，由它推播給對象並標記已發送。

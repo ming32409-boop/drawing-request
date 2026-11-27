@@ -6,7 +6,7 @@
 // 呼叫時機：網頁在送出申請、簽核、發放後呼叫一次。
 // 部署設定：關閉「Verify JWT」（呼叫內容不含任何資料，只是「請檢查待發通知」）。
 // 機密：LINE_CHANNEL_ACCESS_TOKEN 存在 Supabase 的 Edge Function Secrets，不可寫進程式。
-import { createClient } from "npm:@supabase/supabase-js@2";
+import { createClient, type SupabaseClient } from "npm:@supabase/supabase-js@2";
 
 const LIFF_URL = "https://liff.line.me/2012594772-22NJxRHt";
 const ALLOWED_ORIGINS = ["https://ming32409-boop.github.io", "http://localhost:8000"];
@@ -126,6 +126,42 @@ async function push(deps: Deps, token: string, to: string, text: string): Promis
   return `LINE ${res.status} ${body.slice(0, 300)}`;
 }
 
+// 本月（台灣時間）1 號 00:00 的時間點
+export function monthStartTaipei(now = new Date()): string {
+  const tw = new Date(now.getTime() + 8 * 3600_000);
+  const y = tw.getUTCFullYear(), m = tw.getUTCMonth();
+  return new Date(Date.UTC(y, m, 1) - 8 * 3600_000).toISOString();
+}
+
+// 管理看板用：查詢本月 LINE 推播用量（只給核發主管、文管、系統管理員）
+// 呼叫方式：POST {"action":"quota"}，Authorization 帶登入者的 access token。
+type Roles = { active: boolean; is_admin: boolean; is_issuer: boolean; is_dcc: boolean };
+async function quota(req: Request, deps: Deps, admin: SupabaseClient, token: string, origin: string | null) {
+  const jwt = (req.headers.get("Authorization") ?? "").replace(/^Bearer\s+/i, "");
+  if (!jwt) return json({ error: "請先登入" }, 401, origin);
+  const { data: who, error: authError } = await admin.auth.getUser(jwt);
+  if (authError || !who?.user) return json({ error: "請先登入" }, 401, origin);
+  const { data: me } = await admin.from("profiles").select("active, is_admin, is_issuer, is_dcc").eq("id", who.user.id).maybeSingle<Roles>();
+  if (!me || !me.active || !(me.is_admin || me.is_issuer || me.is_dcc)) return json({ error: "沒有權限" }, 403, origin);
+
+  const auth = { headers: { Authorization: `Bearer ${token}` } };
+  const [q, c] = await Promise.all([
+    deps.fetch("https://api.line.me/v2/bot/message/quota", auth),
+    deps.fetch("https://api.line.me/v2/bot/message/quota/consumption", auth),
+  ]);
+  if (!q.ok || !c.ok) return json({ error: `LINE 回應錯誤（${q.status}／${c.status}）` }, 502, origin);
+  const qj = await q.json(), cj = await c.json();
+  // 本月發送失敗（重試 3 次仍失敗）的通知數：用量滿了時會開始出現
+  const { count } = await admin.from("notifications").select("id", { count: "exact", head: true })
+    .is("sent_at", null).gte("attempts", 3).gte("created_at", monthStartTaipei());
+  return json({
+    type: qj.type,                                   // limited＝有上限、none＝沒有上限
+    limit: qj.type === "limited" ? Number(qj.value) : null,
+    used: Number(cj.totalUsage) || 0,
+    failed: count ?? 0,
+  }, 200, origin);
+}
+
 export async function handle(req: Request, deps: Deps): Promise<Response> {
   const origin = req.headers.get("Origin");
   if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: corsHeaders(origin) });
@@ -142,6 +178,14 @@ export async function handle(req: Request, deps: Deps): Promise<Response> {
     auth: { persistSession: false, autoRefreshToken: false },
     global: { fetch: deps.fetch },
   });
+  // 管理看板查詢用量；其他呼叫（沒有內容）都是「請發送待發通知」
+  const body = await req.text().catch(() => "");
+  if (body) {
+    let action: unknown;
+    try { action = JSON.parse(body)?.action; } catch { action = null; }
+    if (action === "quota") return quota(req, deps, admin, token, origin);
+  }
+
   const { data, error } = await admin.rpc("claim_notifications", { p_limit: 20 });
   if (error) return json({ error: "讀取待發通知失敗：" + error.message }, 500, origin);
 

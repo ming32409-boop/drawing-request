@@ -252,6 +252,56 @@
     renderSimple("by-data-type", d.by_data_type);
   }
 
+  // ---------- 本月 LINE 通知用量（由 line-notify 向 LINE 查詢；只有核發主管、文管、管理員看得到） ----------
+  function renderUsage(u) {
+    var box = document.getElementById("line-usage");
+    var num = document.getElementById("usage-num");
+    var meter = document.getElementById("usage-meter");
+    var hint = document.getElementById("usage-hint");
+    box.hidden = false;
+    box.className = "usage";
+    if (!u) {
+      num.textContent = "";
+      meter.hidden = true;
+      hint.textContent = "暫時無法取得 LINE 用量。若持續出現，請確認 line-notify 已部署最新版本。";
+      return;
+    }
+    var failed = u.failed ? "本月有 " + u.failed + " 則通知發送失敗。" : "";
+    if (u.limit === null || u.limit === undefined) {
+      num.textContent = "已發送 " + u.used + " 則";
+      meter.hidden = true;
+      hint.textContent = "目前方案沒有則數上限。" + failed;
+      return;
+    }
+    var pct = u.limit ? Math.min(100, Math.round((u.used / u.limit) * 100)) : 100;
+    var left = Math.max(0, u.limit - u.used);
+    meter.hidden = false;
+    meter.setAttribute("aria-valuemax", String(u.limit));
+    meter.setAttribute("aria-valuenow", String(Math.min(u.used, u.limit)));
+    meter.setAttribute("aria-valuetext", "已用 " + u.used + "／" + u.limit + " 則（" + pct + "%）");
+    meter.querySelector(".meter-fill").style.width = pct + "%";
+    num.textContent = "已用 " + u.used + "／" + u.limit + " 則（" + pct + "%）";
+    if (u.used >= u.limit) {
+      box.classList.add("is-over");
+      hint.textContent = "本月額度已用完，之後的 LINE 通知會發送失敗，直到下個月重置；同事仍可在網頁上看到待辦。" + failed;
+    } else if (pct >= 80) {
+      box.classList.add("is-warn");
+      hint.textContent = "本月已用超過 80%，只剩 " + left + " 則。用完後通知會發送失敗，請考慮升級方案或減少通知。" + failed;
+    } else {
+      hint.textContent = "還剩 " + left + " 則。每張申請約用「3＋文管人數」則。" + failed;
+    }
+  }
+  async function loadUsage() {
+    try {
+      var res = await client.functions.invoke("line-notify", { body: { action: "quota" } });
+      if (res.error || !res.data || typeof res.data.used !== "number") throw res.error || new Error("no data");
+      renderUsage(res.data);
+    } catch (err) {
+      console.warn("LINE 用量讀取失敗", err);
+      renderUsage(null);
+    }
+  }
+
   // ---------- 匯出 Excel（CSV，加 BOM 讓 Excel 正確顯示中文） ----------
   var EXPORT_COLUMNS = [
     ["doc_no", "單號"], ["created_at", "申請時間"], ["applicant", "申請人"], ["department", "部門"],
@@ -319,6 +369,7 @@
       document.getElementById("dash").hidden = false;
       await load();
       setupReveal();
+      loadUsage();   // 不等它：LINE 查詢較慢，不影響看板其他內容
     } catch (err) {
       console.error(err);
       C.showMessage(statusEl, "error", "登入失敗：" + C.describeError(err));

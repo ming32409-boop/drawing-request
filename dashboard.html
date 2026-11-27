@@ -10,8 +10,8 @@
   <meta property="og:title" content="管理看板｜圖面資料申請">
   <meta property="og:description" content="申請趨勢、處理速度、外部用途、常用品號、駁回分析。需以 LINE 登入，限核發主管、文管與系統管理員。">
   <link rel="icon" type="image/svg+xml" href="icon.svg">
-  <link rel="stylesheet" href="theme.css?v=19">
-  <link rel="stylesheet" href="dashboard.css?v=19">
+  <link rel="stylesheet" href="theme.css?v=20">
+  <link rel="stylesheet" href="dashboard.css?v=20">
 </head>
 <body>
   <div class="viz-root">
@@ -76,6 +76,16 @@
         </div>
         <div id="dash-message" class="message" role="status" aria-live="polite" hidden></div>
 
+        <!-- 本月 LINE 通知用量（不受上方期間篩選影響） -->
+        <section id="line-usage" class="usage" aria-labelledby="usage-title" hidden>
+          <div class="usage-top">
+            <h2 id="usage-title" class="usage-title">本月 LINE 通知</h2>
+            <span id="usage-num" class="usage-num"></span>
+          </div>
+          <div id="usage-meter" class="meter" role="progressbar" aria-labelledby="usage-title" aria-valuemin="0"><div class="meter-fill"></div></div>
+          <p id="usage-hint" class="usage-hint"></p>
+        </section>
+
         <!-- 重點數字 -->
         <section class="tiles" id="tiles" aria-label="重點數字"></section>
 
@@ -136,9 +146,9 @@
 
   <script src="https://static.line-scdn.net/liff/edge/2/sdk.js" charset="utf-8"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
-  <script src="config.js?v=19"></script>
-  <script src="auth.js?v=19"></script>
-  <script src="common.js?v=19"></script>
-  <script src="dashboard.js?v=19"></script>
+  <script src="config.js?v=20"></script>
+  <script src="auth.js?v=20"></script>
+  <script src="common.js?v=20"></script>
+  <script src="dashboard.js?v=20"></script>
 </body>
 </html>

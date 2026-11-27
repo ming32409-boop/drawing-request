@@ -82,7 +82,13 @@ async function api(route) {
   const uid = subOf(q.headers()['authorization']);
   calls.push(q.method() + ' ' + u.pathname);
   try {
-    if (u.pathname === '/functions/v1/line-notify') { notifyCalls++; return reply({ sent: 0, failed: 0 }); }
+    if (u.pathname === '/functions/v1/line-notify') {
+      // 管理看板查詢 LINE 用量（假資料，可由 global.QUOTA／QUOTA_FAIL 控制）
+      if ((q.postData() || '').includes('"quota"')) {
+        return global.QUOTA_FAIL ? reply({ error: 'LINE 回應錯誤' }, 502) : reply(global.QUOTA || { type: 'limited', limit: 200, used: 120, failed: 0 });
+      }
+      notifyCalls++; return reply({ sent: 0, failed: 0 });
+    }
     if (u.pathname === '/functions/v1/line-login') return reply({ access_token: jwtFor(global.CURRENT), refresh_token: 'r', expires_at: 9999999999 });
     if (u.pathname === '/auth/v1/user') return reply({ id: uid, aud: 'authenticated', role: 'authenticated' });
     if (u.pathname.startsWith('/auth/v1/logout')) return route.fulfill({ status: 204, headers: H });
@@ -628,6 +634,24 @@ async function api(route) {
   const total = (await pool.query(`select count(*)::int n from public.requests where (created_at at time zone 'Asia/Taipei')::date >= date_trunc('month', (now() at time zone 'Asia/Taipei') - interval '11 months')`)).rows[0].n;
   ok(await pg.locator('#tiles .tile .value').first().textContent() === String(total), 'tile total matches DB (' + total + ')');
   ok(await pg.locator('#monthly .col').count() === 12, '12 monthly columns for 近 12 個月');
+  // 本月 LINE 用量：正常、超過 80%、用完、讀取失敗
+  await pg.waitForSelector('#line-usage:not([hidden]) .usage-num:not(:empty)');
+  ok((await pg.textContent('#usage-num')) === '已用 120／200 則（60%）' && !(await pg.getAttribute('#line-usage', 'class')).includes('is-') &&
+     (await pg.getAttribute('#usage-meter', 'aria-valuenow')) === '120', 'LINE usage shown (60%)');
+  global.QUOTA = { type: 'limited', limit: 200, used: 170, failed: 2 };
+  await pg.reload(); await pg.waitForSelector('#line-usage:not([hidden]) .usage-num:not(:empty)');
+  ok((await pg.getAttribute('#line-usage', 'class')).includes('is-warn') && (await pg.textContent('#usage-hint')).includes('只剩 30 則') &&
+     (await pg.textContent('#usage-hint')).includes('2 則通知發送失敗'), 'LINE usage over 80% warns, shows failed count');
+  if (process.env.SHOT_DIR) await pg.locator('#line-usage').screenshot({ path: process.env.SHOT_DIR + '/usage-warn.png' });
+  global.QUOTA = { type: 'limited', limit: 200, used: 205, failed: 5 };
+  await pg.reload(); await pg.waitForSelector('#line-usage:not([hidden]) .usage-num:not(:empty)');
+  ok((await pg.getAttribute('#line-usage', 'class')).includes('is-over') && (await pg.textContent('#usage-hint')).includes('額度已用完'), 'LINE usage over limit shown in red');
+  global.QUOTA_FAIL = true;
+  await pg.reload(); await pg.waitForFunction(() => document.getElementById('usage-hint').textContent.includes('暫時無法取得'));
+  ok(await pg.locator('#usage-meter').isHidden() && await pg.locator('#tiles .tile').count() > 0, 'LINE usage failure does not break the dashboard');
+  global.QUOTA_FAIL = false; global.QUOTA = null;
+  await pg.reload(); await pg.waitForSelector('#monthly .col');
+
   ok(await pg.locator('#tiles .tile').first().locator('.unit').count() === 0 && (await pg.locator('#tiles .tile .unit').allTextContents()).join('|').includes('%'), 'tile units: plain counts have no unit, percentages do');
   ok(await pg.locator('#speed .hbar').count() === 3 && await pg.locator('#speed .tag').count() === 1, 'speed: 3 stages, one marked 最久');
   ok((await pg.locator('#speed .hbar', { hasText: '第二關' }).locator('.tag').count()) === 1, 'stage2 (8h) is the slowest');

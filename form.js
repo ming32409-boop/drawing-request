@@ -212,7 +212,7 @@
       return;
     }
     if (r.duplicates.length &&
-        !window.confirm("同一張申請裡有重複的品號：\n" + r.duplicates.join("\n") + "\n\n仍然要送出嗎？")) {
+        !(await C.confirm({ title: "有重複的品號，仍然要送出嗎？", body: r.duplicates.join("\n"), ok: "仍然送出", cancel: "回去修改" }))) {
       form.elements.items.focus();
       return;
     }

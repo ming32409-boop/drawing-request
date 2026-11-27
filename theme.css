@@ -327,3 +327,31 @@ button.message-link::after { display: none; }   /* 按鈕是就地動作，不�
   *, *::before, *::after { animation-duration: 0.01ms !important; animation-delay: 0s !important; transition-duration: 0.01ms !important; }
   .message.loading::before { animation-duration: 2.4s !important; }
 }
+
+/* ---------- 頁內確認面板（手機從下方滑出，電腦置中） ---------- */
+.sheet-backdrop {
+  position: fixed; inset: 0; z-index: 60; display: flex; align-items: flex-end; justify-content: center;
+  padding: 0; background: rgba(15, 16, 18, 0.42); animation: fade 0.2s var(--ease) both;
+}
+.sheet {
+  width: 100%; max-width: 520px; padding: 22px 20px calc(18px + env(safe-area-inset-bottom));
+  background: var(--surface); border-radius: 18px 18px 0 0; box-shadow: var(--shadow-pop);
+  animation: sheet-up 0.28s var(--ease) both;
+}
+@keyframes sheet-up { from { transform: translateY(24px); opacity: 0; } to { transform: none; opacity: 1; } }
+.sheet-title { font-size: var(--fs-heading); font-weight: 600; line-height: 1.4; }
+.sheet-body { margin-top: 8px; color: var(--ink-2); font-size: var(--fs-body-md); white-space: pre-line; word-break: break-word; }
+.sheet-actions { display: grid; grid-template-columns: 1fr 1.4fr; gap: 8px; margin-top: 20px; }
+.sheet-actions button { width: 100%; }
+.danger-solid {
+  display: inline-flex; align-items: center; justify-content: center; min-height: 48px; padding: 0 20px;
+  border: 1px solid transparent; border-radius: var(--r-md); background: var(--danger); color: #fff;
+  font-size: var(--fs-body-md); font-weight: 600; letter-spacing: 0.02em;
+}
+:root[data-theme="dark"] .danger-solid { color: #2b0f0d; }
+@media (prefers-color-scheme: dark) { :root:where(:not([data-theme="light"])) .danger-solid { color: #2b0f0d; } }
+.sheet-open, .sheet-open body { overflow: hidden; }
+@media (min-width: 720px) {
+  .sheet-backdrop { align-items: center; padding: 24px; }
+  .sheet { border-radius: var(--r-lg); padding-bottom: 18px; }
+}

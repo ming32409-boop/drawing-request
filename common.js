@@ -116,6 +116,63 @@
       setTimeout(function () { item.classList.remove("spotlight"); }, 2600);
       requestAnimationFrame(function () { item.scrollIntoView({ block: "start", behavior: "smooth" }); });
     },
+    // ---------- 頁內確認面板（取代瀏覽器原生的確認視窗） ----------
+    // 用法：if (!(await C.confirm({ title, body, ok, danger }))) return;
+    // 手機上從下方滑出、電腦上置中；Esc 或點背景＝取消；關閉後焦點回到原本的按鈕。
+    confirm: function (opts) {
+      opts = opts || {};
+      var sheet = document.getElementById("confirm-sheet");
+      if (!sheet) {
+        sheet = document.createElement("div");
+        sheet.id = "confirm-sheet";
+        sheet.className = "sheet-backdrop";
+        sheet.hidden = true;
+        sheet.innerHTML =
+          '<div class="sheet" role="dialog" aria-modal="true" aria-labelledby="sheet-title" aria-describedby="sheet-body">' +
+          '<h3 id="sheet-title" class="sheet-title"></h3><p id="sheet-body" class="sheet-body"></p>' +
+          '<div class="sheet-actions"><button type="button" class="secondary sheet-cancel">取消</button>' +
+          '<button type="button" class="primary sheet-ok"></button></div></div>';
+        document.body.appendChild(sheet);
+      }
+      var okBtn = sheet.querySelector(".sheet-ok"), cancelBtn = sheet.querySelector(".sheet-cancel");
+      sheet.querySelector(".sheet-title").textContent = opts.title || "確定嗎？";
+      sheet.querySelector(".sheet-body").textContent = opts.body || "";
+      sheet.querySelector(".sheet-body").hidden = !opts.body;
+      okBtn.textContent = opts.ok || "確定";
+      okBtn.className = (opts.danger ? "danger-solid" : "primary") + " sheet-ok";
+      cancelBtn.textContent = opts.cancel || "取消";
+      var before = document.activeElement;
+      sheet.hidden = false;
+      document.documentElement.classList.add("sheet-open");
+      // 危險動作預設停在「取消」，避免手滑
+      (opts.danger ? cancelBtn : okBtn).focus();
+      return new Promise(function (resolve) {
+        function close(result) {
+          sheet.hidden = true;
+          document.documentElement.classList.remove("sheet-open");
+          okBtn.removeEventListener("click", onOk);
+          cancelBtn.removeEventListener("click", onCancel);
+          sheet.removeEventListener("click", onBackdrop);
+          document.removeEventListener("keydown", onKey, true);
+          if (before && before.focus && document.contains(before)) before.focus();
+          resolve(result);
+        }
+        function onOk() { close(true); }
+        function onCancel() { close(false); }
+        function onBackdrop(e) { if (e.target === sheet) close(false); }
+        function onKey(e) {
+          if (e.key === "Escape") { e.preventDefault(); close(false); }
+          if (e.key === "Tab") {   // 焦點只在兩個按鈕之間切換
+            e.preventDefault();
+            (document.activeElement === okBtn ? cancelBtn : okBtn).focus();
+          }
+        }
+        okBtn.addEventListener("click", onOk);
+        cancelBtn.addEventListener("click", onCancel);
+        sheet.addEventListener("click", onBackdrop);
+        document.addEventListener("keydown", onKey, true);
+      });
+    },
     // 「明細」展開鈕：卡片預設只顯示摘要與動作，按下才展開完整明細
     detailToggle: function (panel, id) {
       var btn = document.createElement("button");

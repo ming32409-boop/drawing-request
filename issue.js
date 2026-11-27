@@ -12,6 +12,7 @@
     "applicant:profiles!requests_applicant_id_fkey(display_name)",
     "stage1_by_profile:profiles!requests_stage1_by_fkey(display_name)",
     "stage2_by_profile:profiles!requests_stage2_by_fkey(display_name)",
+    "claimed_by", "claimed_at", "claimed_by_profile:profiles!requests_claimed_by_fkey(display_name)",
     "department:departments(name)",
   ].join(", ");
 
@@ -23,6 +24,43 @@
     if (value === null || value === undefined || value === "") return;
     dl.appendChild(C.el("dt", null, label));
     dl.appendChild(C.el("dd", null, value));
+  }
+
+  // 認領列：誰在處理這張；沒人處理時可以「我來處理」
+  function claimRow(r) {
+    var row = C.el("div", "claim-row");
+    var mine = r.claimed_by === ctx.profile.id;
+    var when = r.claimed_at ? "（" + C.formatTime(r.claimed_at).slice(5) + "）" : "";
+    if (!r.claimed_by) {
+      row.appendChild(C.el("span", "claim-state", "尚未有人處理"));
+      var b = C.el("button", "secondary small claim", "我來處理");
+      b.type = "button";
+      b.addEventListener("click", function () { claim(r, true, b); });
+      row.appendChild(b);
+    } else if (mine) {
+      row.appendChild(C.el("span", "claim-state is-mine", "你正在處理" + when));
+      var u = C.el("button", "secondary small unclaim", "取消認領");
+      u.type = "button";
+      u.addEventListener("click", function () { claim(r, false, u); });
+      row.appendChild(u);
+    } else {
+      var name = r.claimed_by_profile ? r.claimed_by_profile.display_name : "其他文管";
+      row.appendChild(C.el("span", "claim-state is-other", name + " 備檔中" + when));
+    }
+    return row;
+  }
+
+  async function claim(r, yes, btn) {
+    btn.disabled = true;
+    var res = await ctx.client.rpc("claim_request", { p_request_id: r.id, p_claim: yes });
+    if (res.error) {
+      btn.disabled = false;
+      C.showMessage(msgEl, "error", r.doc_no + "：" + C.describeError(res.error));
+      load();
+      return;
+    }
+    C.showMessage(msgEl, "success", yes ? r.doc_no + " 已由你認領，其他文管與申請人會看到你正在備檔。" : r.doc_no + " 已取消認領。");
+    load();
   }
 
   async function deliver(r, method, other, note, buttons) {
@@ -68,6 +106,7 @@
     var u = C.urgency(r.stage2_at || r.created_at, r.need_date);
     li.urgency = u;
     box.appendChild(u.el);
+    box.appendChild(claimRow(r));
 
     var dl = C.el("dl", "detail");
     var dept = (r.department ? r.department.name : "") + (r.department_other ? "（" + r.department_other + "）" : "");
@@ -144,7 +183,7 @@
     });
     other.addEventListener("input", function () { err.textContent = ""; });
     noteInput.addEventListener("input", function () { err.textContent = ""; noteInput.classList.remove("invalid"); });
-    btn.addEventListener("click", function () {
+    btn.addEventListener("click", async function () {
       if (!sel.value) { err.textContent = "請選擇發放方式。"; sel.focus(); return; }
       var note = other.value.trim();
       if (sel.value === "其他" && !note) { err.textContent = "選「其他」時請說明發放方式。"; other.focus(); return; }
@@ -155,7 +194,10 @@
         noteInput.focus();
         return;
       }
-      if (!window.confirm("確認 " + r.doc_no + " 已用「" + (sel.value === "其他" ? note : sel.value) + "」發放？確認後會通知申請人並結案。")) return;
+      var byOther = r.claimed_by && r.claimed_by !== ctx.profile.id;
+      var claimer = r.claimed_by_profile ? r.claimed_by_profile.display_name : "其他文管";
+      if (!(await C.confirm({ title: byOther ? claimer + " 正在處理 " + r.doc_no + "，確定由你發放？" : "確認 " + r.doc_no + " 已發放？", body: "發放方式：" + (sel.value === "其他" ? note : sel.value) +
+        (link ? "\n連結／備註：" + link : "") + "\n確認後會通知申請人並結案。", ok: "確認已發放" }))) return;
       deliver(r, sel.value, note, link, [btn]);
     });
 

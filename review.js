@@ -3,6 +3,8 @@
   "use strict";
   var C = window.Common;
   var ctx, listEl, msgEl, refreshBtn, countEl;
+  // 常用的駁回原因：點一下帶入，可以再補充。用字統一，看板的「常見駁回原因」也比較準
+  var REASONS = ["用途說明不足，請補充", "品號或規格有誤，請確認", "需求格式不適當，請調整", "請先與部門主管確認需求"];
 
   var FIELDS = [
     "id", "doc_no", "created_at", "status", "is_external", "department_id", "department_other",
@@ -107,15 +109,33 @@
     var reasonErr = C.el("p", "field-error");
     var confirmReject = C.el("button", "danger confirm-reject", "確認駁回");
     confirmReject.type = "button";
+    var quick = C.el("div", "reason-chips");
+    quick.setAttribute("role", "group");
+    quick.setAttribute("aria-label", "常用原因");
+    REASONS.forEach(function (text) {
+      var b = C.el("button", "reason-chip", text);
+      b.type = "button";
+      b.addEventListener("click", function () {
+        var cur = reason.value.trim();
+        if (cur.indexOf(text) === -1) reason.value = cur ? cur + "；" + text : text;
+        reasonErr.textContent = "";
+        reason.classList.remove("invalid");
+        reason.focus();
+        reason.setSelectionRange(reason.value.length, reason.value.length);
+      });
+      quick.appendChild(b);
+    });
     rejectBox.appendChild(label);
+    rejectBox.appendChild(quick);
     rejectBox.appendChild(reason);
     rejectBox.appendChild(reasonErr);
     rejectBox.appendChild(confirmReject);
     box.appendChild(rejectBox);
 
     var buttons = [approveBtn, rejectBtn, confirmReject];
-    approveBtn.addEventListener("click", function () {
-      if (!window.confirm("確定核准 " + r.doc_no + "？")) return;
+    approveBtn.addEventListener("click", async function () {
+      if (!(await C.confirm({ title: "核准 " + r.doc_no + "？", body: C.itemsSummary(r.items) + "\n" +
+        (r.applicant ? r.applicant.display_name : "") + "・" + r.purpose + (r.is_external ? "（外部用途）" : ""), ok: "核准" }))) return;
       act(r, true, null, buttons);
     });
     rejectBtn.addEventListener("click", function () {

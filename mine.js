@@ -10,7 +10,8 @@
     "department_id", "department_other", "data_types", "items", "purpose", "purpose_other",
     "formats", "format_other", "need_date", "external_note",
     "stage1_result", "stage1_reason", "stage2_result", "stage2_reason",
-    "delivery_method", "delivery_method_other", "delivery_note", "delivered_at",
+    "delivery_method", "delivery_method_other", "delivery_note", "delivered_at", "claimed_at",
+    "claimed_by_profile:profiles!requests_claimed_by_fkey(display_name)",
     "department:departments(name)",
   ].join(", ");
 
@@ -52,7 +53,7 @@
   }
 
   async function withdraw(r, btn) {
-    if (!window.confirm("確定要撤回申請 " + r.doc_no + " 嗎？撤回後不能復原。")) return;
+    if (!(await C.confirm({ title: "撤回申請 " + r.doc_no + "？", body: "撤回後不能復原；需要的話可以複製內容重新申請。", ok: "撤回", danger: true }))) return;
     btn.disabled = true;
     var res = await ctx.client.rpc("withdraw_request", { p_request_id: r.id });
     if (res.error) {
@@ -110,6 +111,11 @@
     metaRow.appendChild(chev);
     head.appendChild(metaRow);
     head.appendChild(progress(r));
+    // 文管已認領：讓申請人知道有人在備檔
+    if (r.status === "待文管發放" && r.claimed_by_profile) {
+      head.appendChild(C.el("p", "claim-note", "文管 " + r.claimed_by_profile.display_name + " 正在備檔" +
+        (r.claimed_at ? "（" + C.formatTime(r.claimed_at).slice(5) + " 開始）" : "")));
+    }
     li.appendChild(head);
 
     var detail = C.el("div", "item-detail");

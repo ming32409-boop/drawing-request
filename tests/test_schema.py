@@ -236,6 +236,25 @@ ok(val("select (search_requests(p_limit => 1, p_offset => 1)->'rows'->0->>'doc_n
 ok(val("select search_requests(p_limit => 1)->'rows'->0->'applicant'->>'display_name' is not null", U['devmgr']) == 't', 'search: rows include applicant name')
 expect_err("select search_requests()", None, 'permission denied', 'search: anon cannot call', role='anon')
 
+# 文管認領（010）
+DOCC = val(submit(U['app'], QC), U['app'])
+RC = val(f"select id from requests where doc_no='{DOCC}'", role=None)
+expect_err(f"select claim_request('{RC}')", U['dcc1'], '不能認領', 'cannot claim before approvals')
+val(f"select review_request('{RC}', true)", U['qcmgr']); val(f"select review_request('{RC}', true)", U['devmgr'])
+expect_err(f"select claim_request('{RC}')", U['qcmgr'], '只有文管', 'non-dcc cannot claim')
+ok(val(f"select claim_request('{RC}')", U['dcc1']) == '已認領', 'dcc claims')
+ok(val(f"select claim_request('{RC}')", U['dcc1']) == '已認領', 'claiming again is harmless')
+expect_err(f"select claim_request('{RC}')", U['dcc2'], '已由 示範dcc1 認領', 'other dcc cannot claim a claimed request')
+expect_err(f"select claim_request('{RC}', false)", U['dcc2'], '只有認領的人', 'other dcc cannot unclaim')
+ok(val(f"select claimed_by = '{U['dcc1']}' and claimed_at is not null from requests where id='{RC}'", U['app']) == 't', 'applicant can see who claimed')
+ok(val(f"select search_requests(p_q => '{DOCC}')->'rows'->0->'claimed_by_profile'->>'display_name'", U['devmgr']) == '示範dcc1', 'search shows claimer')
+ok(val(f"select claim_request('{RC}', false)", U['dcc1']) == '已取消認領', 'claimer can unclaim')
+ok(val(f"select claim_request('{RC}')", U['dcc2']) == '已認領', 'after unclaim another dcc can claim')
+ok(val(f"select deliver_request('{RC}', 'Email')", U['dcc1']) == '已發放結案', 'claim does not block delivery by another dcc')
+expect_err(f"select claim_request('{RC}')", U['dcc1'], '不能認領', 'cannot claim after delivery')
+ok(val(f"select string_agg(action, ',' order by id) from request_events where request_id='{RC}' and stage=3", U['app']) == '認領,取消認領,認領,發放', 'claim events logged')
+expect_err(f"select claim_request('{RC}')", None, 'permission denied', 'anon cannot claim', role='anon')
+
 # concurrency of doc numbers
 import concurrent.futures as cf
 with cf.ThreadPoolExecutor(8) as ex:

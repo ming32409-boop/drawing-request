@@ -444,3 +444,21 @@ label, legend {
   .status-filter button { flex: 1 1 auto; padding: 0 6px; }
   #search-dept { flex-basis: 100%; }
 }
+
+/* 駁回原因快速選項 */
+.reason-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+.reason-chip {
+  min-height: 36px; padding: 0 10px; border-radius: var(--r-md); border: 1px solid var(--line-strong);
+  background: var(--surface); color: var(--ink-2); font-size: var(--fs-small); font-weight: 500; text-align: left;
+  transition: border-color 0.2s var(--ease), background-color 0.2s var(--ease);
+}
+.reason-chip:hover { border-color: var(--danger-line); background: var(--danger-bg); color: var(--danger); }
+@media (pointer: coarse) { .reason-chip { min-height: 44px; } }
+
+/* 文管認領 */
+.claim-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 10px; padding: 8px 10px; border-radius: var(--r-md); background: var(--surface-2); }
+.claim-state { font-size: var(--fs-small); color: var(--ink-3); }
+.claim-state.is-mine { color: var(--primary); font-weight: 600; }
+.claim-state.is-other { color: var(--warn); font-weight: 600; }
+.claim-row .small { flex: none; }
+.claim-note { margin-top: 10px; padding: 6px 10px; border-radius: var(--r-sm); background: var(--warn-bg); color: var(--warn); font-size: var(--fs-small); font-weight: 600; }

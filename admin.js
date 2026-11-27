@@ -144,7 +144,7 @@
     var confirmText = null;
     if (field === "active" && !value) confirmText = "確定停用 " + u.display_name + "？停用後對方不能再使用系統。";
     if (field === "is_admin" && !value && self) confirmText = "確定拿掉你自己的系統管理員身分？拿掉後你就不能再進入管理設定。";
-    if (confirmText && !window.confirm(confirmText)) { sw.checked = !value; return; }
+    if (confirmText && !(await C.confirm({ title: confirmText, ok: field === "active" ? "停用" : "拿掉", danger: true }))) { sw.checked = !value; return; }
     sw.disabled = true;
     var patch = {};
     patch[field] = value;
@@ -243,7 +243,7 @@
 
   async function setDeptActive(d, sw) {
     var value = sw.checked;
-    if (!value && !window.confirm("確定停用「" + d.name + "」？申請表將不再出現這個部門。")) { sw.checked = true; return; }
+    if (!value && !(await C.confirm({ title: "停用「" + d.name + "」？", body: "申請表將不再出現這個部門；過去的申請不受影響。", ok: "停用", danger: true }))) { sw.checked = true; return; }
     sw.disabled = true;
     var res = await ctx.client.from("departments").update({ active: value }).eq("id", d.id).select("id");
     sw.disabled = false;

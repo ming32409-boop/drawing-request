@@ -25,6 +25,20 @@ const server = http.createServer((req, res) => {
 // 截圖時關閉動畫，畫面才不會停在動畫中途
 const RM = { reducedMotion: process.env.SHOT_DIR ? 'reduce' : 'no-preference' };
 const shot = async (pg, name) => { if (process.env.SHOT_DIR) await pg.screenshot({ path: process.env.SHOT_DIR + '/' + name + '.png', fullPage: true }); };
+// 頁內確認面板：測試時預設自動按「確定」並記下內容（和原本自動接受瀏覽器確認視窗一樣）；
+// 要測面板本身時，在頁面上設定 window.__autoSheet = false。
+const AUTO_SHEET = `(() => {
+  window.__sheetLog = []; window.__autoSheet = true;
+  new MutationObserver(() => {
+    const s = document.getElementById('confirm-sheet');
+    if (!s) return;
+    if (s.hidden) { s.dataset.seen = ''; return; }
+    if (s.dataset.seen === '1' || !window.__autoSheet) return;
+    s.dataset.seen = '1';
+    window.__sheetLog.push(s.querySelector('.sheet-title').textContent + '\\n' + s.querySelector('.sheet-body').textContent);
+    setTimeout(() => s.querySelector('.sheet-ok').click(), 0);
+  }).observe(document, { subtree: true, childList: true, attributes: true, attributeFilter: ['hidden'] });
+})();`;
 const ok = (c, m) => { console.log((c ? 'PASS ' : 'FAIL ') + m); if (!c) process.exitCode = 1; };
 const b64 = o => Buffer.from(JSON.stringify(o)).toString('base64url');
 const jwtFor = uid => b64({ alg: 'HS256', typ: 'JWT' }) + '.' + b64({ sub: uid, role: 'authenticated', aud: 'authenticated', exp: Math.floor(Date.now() / 1000) + 3600 }) + '.sig';
@@ -54,6 +68,7 @@ const rpcArgs = {
   search_requests: `p_q => $1::jsonb->>'p_q', p_status => $1::jsonb->>'p_status',
     p_department_id => ($1::jsonb->>'p_department_id')::smallint, p_limit => ($1::jsonb->>'p_limit')::int,
     p_offset => ($1::jsonb->>'p_offset')::int`,
+  claim_request: `p_request_id => ($1::jsonb->>'p_request_id')::uuid, p_claim => ($1::jsonb->>'p_claim')::boolean`,
   review_request: `p_request_id => ($1::jsonb->>'p_request_id')::uuid, p_approve => ($1::jsonb->>'p_approve')::boolean,
     p_reason => $1::jsonb->>'p_reason'`,
 };
@@ -100,19 +115,22 @@ async function api(route) {
     if (u.pathname === '/rest/v1/requests' && p.get('status')) {
       // 待我簽核：status=eq.X，可能有 department_id=in.(1,2)
       const ids = p.get('department_id') ? p.get('department_id').replace(/^in\.\(|\)$/g, '').split(',').map(Number) : null;
-      return reply(await asUser(uid, `select ${REQ_COLS}, r.stage1_at, r.stage2_at,
+      return reply(await asUser(uid, `select ${REQ_COLS}, r.stage1_at, r.stage2_at, r.claimed_by, r.claimed_at,
+          case when cp.id is null then null else json_build_object('display_name', cp.display_name) end as claimed_by_profile,
           case when s2.id is null then null else json_build_object('display_name', s2.display_name) end as stage2_by_profile,
           json_build_object('display_name', ap.display_name) as applicant,
           case when s1.id is null then null else json_build_object('display_name', s1.display_name) end as stage1_by_profile,
           case when d.id is null then null else json_build_object('name', d.name) end as department
         from public.requests r left join public.departments d on d.id = r.department_id
         left join public.profiles ap on ap.id = r.applicant_id left join public.profiles s1 on s1.id = r.stage1_by left join public.profiles s2 on s2.id = r.stage2_by
+        left join public.profiles cp on cp.id = r.claimed_by
         where r.status = $1 and ($2::smallint[] is null or r.department_id = any($2)) order by r.created_at limit 100`,
         [p.get('status').slice(3), ids]));
     }
     if (u.pathname === '/rest/v1/requests') {
-      return reply(await asUser(uid, `select ${REQ_COLS}, case when d.id is null then null else json_build_object('name', d.name) end as department
-        from public.requests r left join public.departments d on d.id = r.department_id
+      return reply(await asUser(uid, `select ${REQ_COLS}, case when d.id is null then null else json_build_object('name', d.name) end as department,
+          r.claimed_at, case when cp.id is null then null else json_build_object('display_name', cp.display_name) end as claimed_by_profile
+        from public.requests r left join public.departments d on d.id = r.department_id left join public.profiles cp on cp.id = r.claimed_by
         where r.applicant_id = $1 order by r.created_at desc limit $2`, [p.get('applicant_id').slice(3), Number(p.get('limit'))]));
     }
     if (u.pathname === '/rest/v1/request_events') {
@@ -145,6 +163,7 @@ async function api(route) {
     `window.liff={init:async()=>{},isLoggedIn:()=>true,login:()=>{},logout:()=>{},getIDToken:()=>'fake.id.token-for-testing',getDecodedIDToken:()=>({sub:'U'+'9'.repeat(32)})};` }));
   await ctx.route('https://cdn.jsdelivr.net/**', r => r.fulfill({ body: UMD, contentType: 'application/javascript' }));
   await ctx.route(SB + '/**', api);
+  await ctx.addInitScript(AUTO_SHEET);
   const p = await ctx.newPage();
   p.on('pageerror', e => ok(false, 'page error ' + e));
   const dialogs = [];
@@ -254,7 +273,7 @@ async function api(route) {
   await p.click('#submit-btn');
   await p.waitForSelector('#form-message.success');
   const doc2 = (await p.textContent('#form-message')).match(/DOC-\d{8}-\d{3}/)[0];
-  ok(dialogs.some(m => m.includes('重複的品號') && m.includes('X-1')), 'duplicate part numbers ask for confirmation on submit');
+  ok((await p.evaluate(() => window.__sheetLog)).some(m => m.includes('重複的品號') && m.includes('X-1')), 'duplicate part numbers ask for confirmation on submit');
   ok((await pool.query('select items from public.requests where doc_no = $1', [doc2])).rows[0].items === 'X-1/<img src=x onerror="window.__xss=1">\nx-1/重複的品號',
      'items saved normalized (fullwidth slash, trimmed, blank lines removed)');
 
@@ -273,6 +292,23 @@ async function api(route) {
   ok((await second.locator('.timeline').textContent()).includes('送出'), 'events timeline shows 送出');
   { const t = await second.locator('.detail').textContent(); ok(t.includes('品管課') && t.includes(tomorrow) && !t.includes('T00:00'), 'detail shows department and need date'); }
   await shot(p, 'd-mine');
+  await p.evaluate(() => { window.__autoSheet = false; });
+  await second.locator('button.danger').click();
+  await p.waitForSelector('#confirm-sheet:not([hidden])');
+  ok((await p.textContent('#confirm-sheet .sheet-title')).includes('撤回申請') &&
+     await p.evaluate(() => document.activeElement && document.activeElement.classList.contains('sheet-cancel')),
+     'confirm sheet opens; danger action focuses 取消');
+  await p.keyboard.press('Escape');
+  await p.waitForSelector('#confirm-sheet', { state: 'hidden' });
+  await second.locator('button.danger').click();
+  await p.waitForSelector('#confirm-sheet:not([hidden])');
+  if (process.env.SHOT_DIR) await p.screenshot({ path: process.env.SHOT_DIR + '/confirm-sheet.png' });
+  await p.click('#confirm-sheet .sheet-cancel');
+  await p.waitForSelector('#confirm-sheet', { state: 'hidden' });
+  ok((await pool.query('select status from public.requests where doc_no=$1', [doc1])).rows[0].status === '申請主管簽核中' &&
+     await p.evaluate(() => document.activeElement && document.activeElement.classList.contains('danger')),
+     'Esc and 取消 do not withdraw; focus returns to the button');
+  await p.evaluate(() => { window.__autoSheet = true; });
   await second.locator('button.danger').click();
   await p.waitForSelector('#mine-message.success');
   await p.waitForFunction(d => [...document.querySelectorAll('.request-item')].some(li => li.textContent.includes(d) && li.textContent.includes('已撤回')), doc1);
@@ -303,6 +339,7 @@ async function api(route) {
     `window.liff={init:async()=>{},isLoggedIn:()=>true,login:()=>{},logout:()=>{},getIDToken:()=>'fake.id.token-for-testing',getDecodedIDToken:()=>({sub:'U'+'8'.repeat(32)})};` }));
   await c2.route('https://cdn.jsdelivr.net/**', r => r.fulfill({ body: UMD, contentType: 'application/javascript' }));
   await c2.route(SB + '/**', api);
+  await c2.addInitScript(AUTO_SHEET);
   global.CURRENT = U.off;
   const nPending = notifyCalls;
   const p2 = await c2.newPage(); await p2.goto(PAGE);
@@ -325,6 +362,7 @@ async function api(route) {
       `window.liff={init:async()=>{},isLoggedIn:()=>true,login:()=>{},logout:()=>{},getIDToken:()=>'fake.id.token-for-testing',getDecodedIDToken:()=>({sub:'U'+'7'.repeat(32)})};` }));
     await c.route('https://cdn.jsdelivr.net/**', r => r.fulfill({ body: UMD, contentType: 'application/javascript' }));
     await c.route(SB + '/**', api);
+    await c.addInitScript(AUTO_SHEET);
     global.CURRENT = uid;
     const pg = await c.newPage();
     pg.on('pageerror', e => ok(false, 'page error ' + e));
@@ -340,6 +378,7 @@ async function api(route) {
       `window.liff={init:async()=>{},isLoggedIn:()=>true,login:()=>{},logout:()=>{},getIDToken:()=>'fake.id.token-for-testing',getDecodedIDToken:()=>({sub:'U'+'7'.repeat(32)})};` }));
     await c.route('https://cdn.jsdelivr.net/**', r => r.fulfill({ body: UMD, contentType: 'application/javascript' }));
     await c.route(SB + '/**', api);
+    await c.addInitScript(AUTO_SHEET);
     global.CURRENT = uid;
     const pg = await c.newPage();
     pg.on('pageerror', e => ok(false, 'page error ' + e));
@@ -388,6 +427,13 @@ async function api(route) {
   await itB.locator('button.reject').click();
   await itB.locator('button.confirm-reject').click();
   ok((await itB.locator('.field-error').textContent()).includes('駁回原因'), 'reject requires reason (client)');
+  // 常用原因：點一下帶入、再點另一個會接在後面、同一個不重複
+  await itB.locator('.reason-chip', { hasText: '用途說明不足' }).click();
+  await itB.locator('.reason-chip', { hasText: '品號或規格有誤' }).click();
+  await itB.locator('.reason-chip', { hasText: '用途說明不足' }).click();
+  ok(await itB.locator('textarea').inputValue() === '用途說明不足，請補充；品號或規格有誤，請確認' && await itB.locator('.field-error').textContent() === '',
+     'quick reasons fill and append without duplicates');
+  if (process.env.SHOT_DIR) await itB.screenshot({ path: process.env.SHOT_DIR + '/reject-reasons.png' });
   await itB.locator('textarea').fill('用途說明不足（測試）');
   await itB.locator('button.confirm-reject').click();
   await pg.waitForFunction(() => document.querySelectorAll('.review-item').length === 0);
@@ -494,6 +540,45 @@ async function api(route) {
   ok((await pool.query(`select delivery_note from public.requests where id=$1`, [id3])).rows[0].delivery_note === 'https://drive.example.invalid/rv3', 'first delivery kept');
   await pg.context().close();
 
+  // 文管認領：我來處理 → 申請人看到備檔中 → 取消／再認領 → 另一位文管看到「某某 備檔中」，發放前提醒
+  await submitAs(U.app, '品管課', 'RV-0004/示範認領');
+  const id4 = (await pool.query(`select id from public.requests where items like 'RV-0004%'`)).rows[0].id;
+  await asUser(U.mgr, 'select public.review_request($1, true)', [id4]);
+  await asUser(ISS, 'select public.review_request($1, true)', [id4]);
+  pg = await openAs(DCC, PAGE + '?tab=issue');
+  const it4 = pg.locator('.issue-item', { hasText: 'RV-0004' });
+  await it4.waitFor();
+  ok((await it4.locator('.claim-state').textContent()) === '尚未有人處理', 'unclaimed request shows 尚未有人處理');
+  await it4.locator('button.claim').click();
+  await pg.waitForFunction(() => [...document.querySelectorAll('.issue-item .claim-state')].some(e => e.textContent.startsWith('你正在處理')));
+  ok((await pool.query(`select claimed_by from public.requests where id=$1`, [id4])).rows[0].claimed_by === DCC, 'claim saved');
+  if (process.env.SHOT_DIR) await pg.locator('.issue-item', { hasText: 'RV-0004' }).screenshot({ path: process.env.SHOT_DIR + '/claim-mine.png' });
+  await pg.locator('.issue-item', { hasText: 'RV-0004' }).locator('button.unclaim').click();
+  await pg.waitForFunction(() => [...document.querySelectorAll('.issue-item .claim-state')].some(e => e.textContent === '尚未有人處理'));
+  await pg.locator('.issue-item', { hasText: 'RV-0004' }).locator('button.claim').click();
+  await pg.waitForFunction(() => [...document.querySelectorAll('.issue-item .claim-state')].some(e => e.textContent.startsWith('你正在處理')));
+  ok(true, 'unclaim and claim again');
+  await pg.context().close();
+  // 申請人看到誰在備檔
+  pg = await openAs(U.app, PAGE + '?tab=mine');
+  const itM4 = pg.locator('.request-item', { hasText: 'RV-0004' });
+  await itM4.waitFor();
+  ok((await itM4.locator('.claim-note').textContent()).includes('文管 示範文管 正在備檔'), 'applicant sees who is preparing the files');
+  await pg.context().close();
+  // 另一位文管：看到「示範文管 備檔中」、沒有認領鍵；硬要發放時先提醒
+  pg = await openAs(DCC2, PAGE + '?tab=issue');
+  const it4b = pg.locator('.issue-item', { hasText: 'RV-0004' });
+  await it4b.waitFor();
+  ok((await it4b.locator('.claim-state').textContent()).startsWith('示範文管 備檔中') && await it4b.locator('button.claim').count() === 0,
+     'other dcc sees the claimer and cannot claim');
+  await it4b.locator('select.method').selectOption('Email');
+  await it4b.locator('button.deliver').click();
+  await pg.waitForSelector('#issue-message.success');
+  ok((await pg.evaluate(() => window.__sheetLog)).some(m => m.includes('示範文管 正在處理')) &&
+     (await pool.query(`select status from public.requests where id=$1`, [id4])).rows[0].status === '已發放結案',
+     'other dcc is warned before delivering a claimed request');
+  await pg.context().close();
+
   // 申請人在我的申請看到發放方式
   const docRV1 = (await pool.query(`select doc_no from public.requests where items like 'RV-0001%'`)).rows[0].doc_no;
   pg = await openAs(U.app, PAGE + '?tab=mine&doc=' + docRV1);
@@ -591,6 +676,7 @@ async function api(route) {
         `window.liff={init:async()=>{},isLoggedIn:()=>true,login:()=>{},logout:()=>{},getIDToken:()=>'fake.id.token-for-testing',getDecodedIDToken:()=>({sub:'U'+'7'.repeat(32)})};` }));
       await cd.route('https://cdn.jsdelivr.net/**', r => r.fulfill({ body: UMD, contentType: 'application/javascript' }));
       await cd.route(SB + '/**', api);
+      await cd.addInitScript(AUTO_SHEET);
       global.CURRENT = uid;
       const pd = await cd.newPage();
       await pd.goto(url); await pd.waitForSelector(sel);
@@ -755,6 +841,7 @@ async function api(route) {
       `window.liff={init:async()=>{},isLoggedIn:()=>true,login:()=>{},logout:()=>{},getIDToken:()=>'fake.id.token-for-testing',getDecodedIDToken:()=>({sub:'U'+'7'.repeat(32)})};` }));
     await c.route('https://cdn.jsdelivr.net/**', r => r.fulfill({ body: UMD, contentType: 'application/javascript' }));
     await c.route(SB + '/**', api);
+    await c.addInitScript(AUTO_SHEET);
     global.CURRENT = uid;
     const p = await c.newPage();
     p.on('pageerror', e => ok(false, 'page error ' + e));

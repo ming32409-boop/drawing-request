@@ -2,6 +2,8 @@
 
 需求見 [需求筆記.txt](需求筆記.txt)，專案規則見 [AGENTS.md](AGENTS.md)。
 
+請同事測試時，發給他們 [文件/測試說明.md](文件/測試說明.md)。
+
 ## 架構
 - 網頁：GitHub Pages（`main` 分支根目錄），在 LINE 裡用 LIFF 開啟。目前有「新增申請」「我的申請」「待我簽核」「文管發放」。
   - 網址：https://ming32409-boop.github.io/drawing-request/

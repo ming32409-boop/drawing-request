@@ -55,6 +55,15 @@
     top.appendChild(C.el("span", "badge status s-review", stage));
     box.appendChild(top);
 
+    // 摘要：誰申請、要什麼、急不急；動作按鈕直接可按，完整明細收在「查看明細」
+    var deptName = (r.department ? r.department.name : "") + (r.department_other ? "（" + r.department_other + "）" : "");
+    box.appendChild(C.el("p", "item-summary", C.itemsSummary(r.items)));
+    box.appendChild(C.el("p", "item-meta", (r.applicant ? r.applicant.display_name : "") + "（" + deptName + "）・" +
+      (r.purpose + (r.purpose_other ? "（" + r.purpose_other + "）" : "")) + "・" + r.formats.join("、")));
+    var u = C.urgency(r.status === "申請主管簽核中" ? r.created_at : (r.stage1_at || r.created_at), r.need_date);
+    li.urgency = u;
+    box.appendChild(u.el);
+
     var dl = C.el("dl", "detail");
     var dept = (r.department ? r.department.name : "") + (r.department_other ? "（" + r.department_other + "）" : "");
     row(dl, "申請人", (r.applicant ? r.applicant.display_name : "") + "（" + dept + "）");
@@ -70,8 +79,11 @@
       var who = r.stage1_by_profile ? r.stage1_by_profile.display_name : "";
       row(dl, "第一關", r.stage1_result + (who ? "（" + who + "）" : ""));
     }
-    box.appendChild(dl);
-    box.appendChild(C.el("pre", "items-full", r.items));
+    var more = C.el("div", "card-detail");
+    more.appendChild(dl);
+    more.appendChild(C.el("pre", "items-full", r.items));
+    box.appendChild(C.detailToggle(more, "review-detail-" + r.id));
+    box.appendChild(more);
 
     var actions = C.el("div", "review-actions");
     var approveBtn = C.el("button", "primary approve", "核准");
@@ -156,7 +168,10 @@
         return;
       }
       if (msgEl.classList.contains("info") || msgEl.classList.contains("empty-state")) C.hideMessage(msgEl);
-      rows.forEach(function (r) { listEl.appendChild(renderItem(r)); });
+      // 依急迫度排序：需要日期已到／快到 → 等超過 2 天 → 等最久的
+      rows.map(function (r) { return renderItem(r); })
+        .sort(function (a, b) { return C.compareUrgency(a.urgency, b.urgency); })
+        .forEach(function (li) { listEl.appendChild(li); });
       C.revealDoc("review", listEl, msgEl);
     } catch (err) {
       C.showMessage(msgEl, "error", "無法載入：" + C.describeError(err));

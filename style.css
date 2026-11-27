@@ -390,3 +390,57 @@ label, legend {
 .add-row { display: flex; gap: 8px; margin-top: 8px; }
 .add-row input { flex: 1; }
 .add-row .secondary { flex: none; }
+
+/* ---------- 急迫度標籤（待我簽核、文管發放） ---------- */
+.urgency { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.u-chip {
+  display: inline-flex; align-items: center; gap: 5px; min-height: 24px; padding: 2px 8px; border-radius: var(--r-sm);
+  font-size: var(--fs-label-sm); font-weight: 600; line-height: 1.3; white-space: nowrap;
+  background: var(--surface-2); color: var(--ink-2); box-shadow: inset 0 0 0 1px var(--line);
+}
+.u-chip::before {
+  content: ""; width: 12px; height: 12px; flex: none; background-color: currentColor;
+  -webkit-mask: var(--u-icon) center / contain no-repeat; mask: var(--u-icon) center / contain no-repeat;
+}
+.u-wait { --u-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%23000' stroke-width='1.6' stroke-linecap='round'%3E%3Ccircle cx='8' cy='8' r='6'/%3E%3Cpath d='M8 4.8V8l2.2 1.4'/%3E%3C/svg%3E"); }
+.u-need { --u-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%23000' stroke-width='1.6' stroke-linecap='round'%3E%3Crect x='2.5' y='3.5' width='11' height='10' rx='1.5'/%3E%3Cpath d='M2.5 6.8h11M5.5 2v3M10.5 2v3'/%3E%3C/svg%3E"); }
+.u-late, .u-soon { background: var(--warn-bg); color: var(--warn); box-shadow: none; }
+.u-over { background: var(--danger-bg); color: var(--danger); box-shadow: none; }
+
+/* 「查看明細」：卡片預設只顯示摘要與動作 */
+.detail-toggle {
+  display: inline-flex; align-items: center; gap: 6px; margin-top: 12px; min-height: 36px; padding: 0 4px 0 0;
+  border: 0; background: none; color: var(--primary); font-size: var(--fs-label); font-weight: 600;
+}
+.detail-toggle .chev { width: 24px; height: 24px; color: var(--primary); border-color: var(--line); }
+.detail-toggle[aria-expanded="true"] .chev { transform: rotate(180deg); }
+@media (pointer: coarse) { .detail-toggle { min-height: 44px; } }
+.card-detail { animation: fade 0.25s var(--ease) both; }
+.review-body .card-detail .detail { margin-top: 4px; }
+
+/* ---------- 申請查詢 ---------- */
+.search-bar { display: flex; gap: 8px; margin-bottom: 10px; }
+.search-bar input { flex: 1; }
+.search-bar .primary { flex: none; min-height: 48px; }
+.filter-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 12px; }
+.status-filter {
+  display: flex; gap: 2px; padding: 3px; border-radius: var(--r-md); background: var(--surface-2); border: 1px solid var(--line);
+  overflow-x: auto; scrollbar-width: none; max-width: 100%;
+}
+.status-filter::-webkit-scrollbar { display: none; }
+.status-filter button {
+  flex: none; min-height: 36px; padding: 0 12px; border: 0; border-radius: 7px; background: transparent;
+  color: var(--ink-3); font-size: var(--fs-label); font-weight: 500; white-space: nowrap;
+  transition: background-color 0.2s var(--ease), color 0.2s var(--ease);
+}
+.status-filter button[aria-pressed="true"] { background: var(--surface); color: var(--ink); box-shadow: 0 0 0 1px var(--line-strong), 0 1px 2px rgba(22, 24, 29, 0.08); }
+@media (pointer: coarse) { .status-filter button { min-height: 44px; } }
+#search-dept { width: auto; flex: 1 1 140px; min-height: 44px; }
+.result-count { margin: 0 2px 10px; color: var(--ink-3); font-size: var(--fs-small); }
+.result-count:empty { display: none; }
+.list-view > .load-more { display: flex; width: 100%; margin-top: 14px; }
+@media (max-width: 480px) {
+  .status-filter { width: 100%; }
+  .status-filter button { flex: 1 1 auto; padding: 0 6px; }
+  #search-dept { flex-basis: 100%; }
+}

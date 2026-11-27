@@ -40,7 +40,7 @@ async function asUser(uid, sql, params) {
 }
 const REQ_COLS = `r.id, r.doc_no, r.created_at, r.status, r.is_external, r.department_id, r.department_other, r.data_types, r.items,
   r.purpose, r.purpose_other, r.formats, r.format_other, r.need_date, r.external_note, r.stage1_result, r.stage1_reason,
-  r.stage2_result, r.stage2_reason, r.delivery_method, r.delivery_method_other, r.delivered_at`;
+  r.stage2_result, r.stage2_reason, r.delivery_method, r.delivery_method_other, r.delivery_note, r.delivered_at`;
 const rpcArgs = {
   submit_request: `p_department_id => ($1::jsonb->>'p_department_id')::smallint, p_department_other => $1::jsonb->>'p_department_other',
     p_data_types => array(select jsonb_array_elements_text($1::jsonb->'p_data_types')), p_items => $1::jsonb->>'p_items',
@@ -49,7 +49,7 @@ const rpcArgs = {
     p_need_date => ($1::jsonb->>'p_need_date')::date, p_external_note => $1::jsonb->>'p_external_note'`,
   withdraw_request: `p_request_id => ($1::jsonb->>'p_request_id')::uuid`,
   deliver_request: `p_request_id => ($1::jsonb->>'p_request_id')::uuid, p_method => $1::jsonb->>'p_method',
-    p_method_other => $1::jsonb->>'p_method_other'`,
+    p_method_other => $1::jsonb->>'p_method_other', p_note => $1::jsonb->>'p_note'`,
   dashboard_data: `p_from => ($1::jsonb->>'p_from')::date, p_to => ($1::jsonb->>'p_to')::date`,
   review_request: `p_request_id => ($1::jsonb->>'p_request_id')::uuid, p_approve => ($1::jsonb->>'p_approve')::boolean,
     p_reason => $1::jsonb->>'p_reason'`,
@@ -202,6 +202,23 @@ async function api(route) {
   const row = (await pool.query('select * from public.requests where doc_no = $1', [doc1])).rows[0];
   ok(row && row.status === '申請主管簽核中' && row.is_external && row.data_types.join() === '圖面,材質證明' && row.applicant_id === U.app && row.need_date.toISOString && row.items.split('\n').length === 2, 'DB row correct');
   ok(await p.inputValue('#items') === '' && !(await p.isChecked('input[value="圖面"]')), 'form resets after submit');
+  const qcId = String((await pool.query("select id from public.departments where name = '品管課'")).rows[0].id);
+  ok(await p.inputValue('#department') === qcId, 'remembers last department after submit');
+  // 草稿：填到一半關掉，重新開啟會還原；按「清除重填」清空但保留部門
+  await p.check('input[value="樣品"]');
+  await p.fill('#items', 'DRAFT-1/草稿測試');
+  await p.waitForTimeout(700);
+  await p.reload();
+  await p.waitForSelector('#tabs:not([hidden])');
+  ok(await p.inputValue('#items') === 'DRAFT-1/草稿測試' && await p.isChecked('input[value="樣品"]') &&
+     (await p.textContent('#prefill-note')).includes('已還原'), 'draft restored after reopening');
+  if (process.env.SHOT_DIR) await p.screenshot({ path: process.env.SHOT_DIR + '/e-draft.png' });
+  await p.click('#draft-clear');
+  ok(await p.inputValue('#items') === '' && !(await p.isChecked('input[value="樣品"]')) && await p.inputValue('#department') === qcId &&
+     await p.locator('#prefill-note').isHidden(), 'clear draft empties form but keeps department');
+  await p.reload();
+  await p.waitForSelector('#tabs:not([hidden])');
+  ok(await p.locator('#prefill-note').isHidden() && await p.inputValue('#items') === '', 'cleared draft does not come back');
 
   // XSS 測試用第二筆
   await p.selectOption('#department', { label: '品管課' });
@@ -263,8 +280,11 @@ async function api(route) {
   await c2.route('https://cdn.jsdelivr.net/**', r => r.fulfill({ body: UMD, contentType: 'application/javascript' }));
   await c2.route(SB + '/**', api);
   global.CURRENT = U.off;
+  const nPending = notifyCalls;
   const p2 = await c2.newPage(); await p2.goto(PAGE);
   await p2.waitForSelector('#pending-hint:not([hidden])');
+  await p2.waitForFunction(() => true);
+  ok(notifyCalls > nPending && (await p2.textContent('#pending-hint')).includes('已用 LINE 通知管理員'), 'pending screen triggers admin notification');
   ok(await p2.locator('#tabs').isHidden() && await p2.locator('#view-new').isHidden(), 'inactive user: no tabs/form');
   ok(await p2.locator('.welcome-title').isVisible() && await p2.locator('#pending-hint').isVisible(), 'inactive user sees welcome screen with pending hint');
   if (process.env.SHOT_DIR) await p2.screenshot({ path: process.env.SHOT_DIR + '/e-pending.png' });
@@ -321,6 +341,17 @@ async function api(route) {
   ok(await pg.locator('#view-review').isVisible(), 'manager: ?tab=review opens review tab');
   ok(await pg.textContent('#review-count') === '2' && await pg.locator('.review-item').count() === 2, 'manager sees 2 pending with count badge');
   ok(!(await pg.locator('#view-review').textContent()).includes('RV-OTHER'), 'only own department requests');
+  // LINE 通知的連結帶單號：直接捲到那一張並標示；網址裡的參數會清掉
+  const docRV2 = (await pool.query(`select doc_no from public.requests where items like 'RV-0002%'`)).rows[0].doc_no;
+  const pgL = await openAs(U.mgr, PAGE + '?tab=review&doc=' + docRV2);
+  await pgL.waitForSelector(`#review-list .review-item.spotlight[data-doc="${docRV2}"]`);
+  ok(await pgL.locator(`.review-item[data-doc="${docRV2}"]`).isVisible() && !(await pgL.evaluate(() => location.search.includes('doc='))),
+     'deep link spotlights the request and cleans the URL');
+  await pgL.context().close();
+  const pgN = await openAs(U.mgr, PAGE + '?tab=review&doc=DOC-20990101-001');
+  await pgN.waitForFunction(() => document.getElementById('review-message').textContent.includes('已不在'));
+  ok(await pgN.locator('.review-item').count() === 2, 'deep link to a handled request explains and keeps the list');
+  await pgN.context().close();
   if (process.env.SHOT_DIR) await pg.screenshot({ path: process.env.SHOT_DIR + '/s7-review.png', fullPage: true });
   const n0 = notifyCalls;
   const itA = pg.locator('.review-item', { hasText: 'RV-0001' });
@@ -402,6 +433,11 @@ async function api(route) {
   if (process.env.SHOT_DIR) await pg.screenshot({ path: process.env.SHOT_DIR + '/s8-issue.png', fullPage: true });
   await itD.locator('button.deliver').click();
   ok((await itD.locator('.field-error').textContent()).includes('發放方式'), 'requires delivery method');
+  await itD.locator('select.method').selectOption('雲端連結');
+  ok((await itD.locator('.note-label').textContent()).includes('雲端連結'), 'note field becomes cloud link field');
+  await itD.locator('button.deliver').click();
+  ok((await itD.locator('.field-error').textContent()).includes('雲端連結'), '雲端連結 requires a link');
+  if (process.env.SHOT_DIR) await itD.screenshot({ path: process.env.SHOT_DIR + '/e-cloud-link.png' });
   await itD.locator('select.method').selectOption('其他');
   await itD.locator('button.deliver').click();
   ok((await itD.locator('.field-error').textContent()).includes('其他'), '其他 requires note');
@@ -424,23 +460,29 @@ async function api(route) {
   await asUser(ISS, 'select public.review_request($1, true)', [id3]);
   pg = await openAs(DCC2, PAGE + '#issue');
   await pg.waitForSelector('#view-issue:not([hidden]) .issue-item');
-  await asUser(DCC, `select public.deliver_request($1, 'Email')`, [id3]);
+  await asUser(DCC, `select public.deliver_request($1, '雲端連結', null, 'https://drive.example.invalid/rv3')`, [id3]);
   const it3 = pg.locator('.issue-item', { hasText: 'RV-0003' });
   await it3.locator('select.method').selectOption('雲端連結');
+  await it3.locator('input.delivery-note-input').fill('https://drive.example.invalid/late');
   await it3.locator('button.deliver').click();
   await pg.waitForSelector('#issue-message.error');
   ok((await pg.textContent('#issue-message')).includes('不能發放'), 'second dcc gets error: ' + await pg.textContent('#issue-message'));
-  ok((await pool.query(`select delivery_method from public.requests where id=$1`, [id3])).rows[0].delivery_method === 'Email', 'first delivery kept');
+  ok((await pool.query(`select delivery_note from public.requests where id=$1`, [id3])).rows[0].delivery_note === 'https://drive.example.invalid/rv3', 'first delivery kept');
   await pg.context().close();
 
   // 申請人在我的申請看到發放方式
-  pg = await openAs(U.app, PAGE + '?tab=mine');
+  const docRV1 = (await pool.query(`select doc_no from public.requests where items like 'RV-0001%'`)).rows[0].doc_no;
+  pg = await openAs(U.app, PAGE + '?tab=mine&doc=' + docRV1);
   await pg.waitForSelector('#view-mine:not([hidden]) .request-item');
   const itM = pg.locator('.request-item', { hasText: 'RV-0001' });
+  await itM.locator('.item-head[aria-expanded="true"]').waitFor();
+  ok(true, 'deep link expands the request in 我的申請');
   ok((await itM.locator('.progress li').evaluateAll(l => l.map(x => x.className).join(','))) === 'done,done,done,done', 'progress stepper: all done after delivery');
   ok((await itM.locator('.badge.status').textContent()) === '已發放結案', 'applicant sees 已發放結案');
-  await itM.locator('.item-head').click();
   ok((await itM.locator('.detail').textContent()).includes('其他（現場交付（測試））'), 'applicant sees delivery method');
+  const it3M = pg.locator('.request-item', { hasText: 'RV-0003' });
+  await it3M.locator('.item-head').click();
+  ok(await it3M.locator('.delivery-note a.text-link').getAttribute('href') === 'https://drive.example.invalid/rv3', 'applicant gets a clickable cloud link');
   await pg.context().close();
 
   // ===== 第 9 步：管理看板 =====

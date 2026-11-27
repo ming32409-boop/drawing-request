@@ -10,7 +10,7 @@
     "department_id", "department_other", "data_types", "items", "purpose", "purpose_other",
     "formats", "format_other", "need_date", "external_note",
     "stage1_result", "stage1_reason", "stage2_result", "stage2_reason",
-    "delivery_method", "delivery_method_other", "delivered_at",
+    "delivery_method", "delivery_method_other", "delivery_note", "delivered_at",
     "department:departments(name)",
   ].join(", ");
 
@@ -87,6 +87,7 @@
 
   function renderItem(r) {
     var li = C.el("li", "request-item");
+    li.dataset.doc = r.doc_no;
     var head = C.el("button", "item-head");
     head.type = "button";
     head.setAttribute("aria-expanded", "false");
@@ -120,6 +121,13 @@
     row(dl, "第二關", r.stage2_result + (r.stage2_reason ? "：" + r.stage2_reason : ""));
     if (r.delivered_at) {
       row(dl, "發放方式", withOther(r.delivery_method, r.delivery_method_other));
+      if (r.delivery_note) {
+        // 連結／備註：網址可以直接點開
+        dl.appendChild(C.el("dt", null, "連結／備註"));
+        var dd = C.el("dd", "delivery-note");
+        dd.appendChild(C.linkify(r.delivery_note));
+        dl.appendChild(dd);
+      }
       row(dl, "發放時間", C.formatTime(r.delivered_at));
     }
     detail.appendChild(dl);
@@ -163,6 +171,7 @@
       if (!res.data.length) { C.showEmpty(msgEl, "還沒有申請紀錄", "到「新增申請」填寫第一張，進度會顯示在這裡。"); return; }
       if (msgEl.classList.contains("info") || msgEl.classList.contains("empty-state")) C.hideMessage(msgEl);
       res.data.forEach(function (r) { listEl.appendChild(renderItem(r)); });
+      C.revealDoc("mine", listEl, msgEl);
     } catch (err) {
       C.showMessage(msgEl, "error", "無法載入：" + C.describeError(err));
     } finally {

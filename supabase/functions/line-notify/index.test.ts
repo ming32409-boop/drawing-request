@@ -88,3 +88,24 @@ Deno.test("message_texts", () => {
   assertStringIncludes(rej, "?tab=mine");
   assert(!buildMessage(notice({ is_external: false })).includes("外部用途"));
 });
+
+Deno.test("links_open_the_specific_request", () => {
+  assertStringIncludes(buildMessage(notice()), "?tab=review&doc=DOC-20261113-001");
+  assertStringIncludes(buildMessage(notice({ kind: "待發放" })), "?tab=issue&doc=DOC-20261113-001");
+  assertStringIncludes(buildMessage(notice({ kind: "已發放", delivery_method: "Email" })), "?tab=mine&doc=DOC-20261113-001");
+});
+
+Deno.test("delivered_message_includes_link_or_note", () => {
+  const m = buildMessage(notice({ kind: "已發放", delivery_method: "雲端連結", delivery_note: "https://drive.example.invalid/abc" }));
+  assertStringIncludes(m, "連結／備註：https://drive.example.invalid/abc");
+  assert(!buildMessage(notice({ kind: "已發放", delivery_method: "Email", delivery_note: null })).includes("連結／備註"));
+});
+
+Deno.test("new_account_message_for_admins", () => {
+  const m = buildMessage(notice({
+    kind: "新帳號待啟用", subject_name: "示範新人", doc_no: null as unknown as string, data_types: null as unknown as string[],
+    items: null as unknown as string,
+  }));
+  assertStringIncludes(m, "【新帳號待啟用】示範新人");
+  assert(!m.includes("單號"));
+});

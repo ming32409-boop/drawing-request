@@ -46,6 +46,7 @@
   function renderItem(r) {
     var stage = r.status === "申請主管簽核中" ? "第一關・部門主管" : "第二關・核發主管";
     var li = C.el("li", "request-item review-item");
+    li.dataset.doc = r.doc_no;
     var box = C.el("div", "review-body");
 
     var top = C.el("div", "item-top");
@@ -156,6 +157,7 @@
       }
       if (msgEl.classList.contains("info") || msgEl.classList.contains("empty-state")) C.hideMessage(msgEl);
       rows.forEach(function (r) { listEl.appendChild(renderItem(r)); });
+      C.revealDoc("review", listEl, msgEl);
     } catch (err) {
       C.showMessage(msgEl, "error", "無法載入：" + C.describeError(err));
     } finally {

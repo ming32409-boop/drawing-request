@@ -102,7 +102,10 @@ expect_err(f"select review_request('{R1}', true)", U['devmgr'], '不能簽核', 
 expect_err(f"select deliver_request('{R1}', null)", U['dcc1'], '請選擇發放方式', 'deliver requires method')
 expect_err(f"select deliver_request('{R1}', '其他')", U['dcc1'], '必須填寫說明', 'deliver 其他 requires note')
 expect_err(f"select deliver_request('{R1}', 'Email')", U['qcmgr'], '只有文管', 'non-dcc cannot deliver')
-ok(val(f"select deliver_request('{R1}', '雲端連結')", U['dcc1']) == '已發放結案', 'dcc delivers')
+expect_err(f"select deliver_request('{R1}', '雲端連結')", U['dcc1'], '必須貼上連結', 'deliver 雲端連結 requires link')
+expect_err(f"select deliver_request('{R1}', 'Email', null, repeat('x', 501))", U['dcc1'], '最多 500 字', 'delivery note max 500 chars')
+ok(val(f"select deliver_request('{R1}', '雲端連結', null, '  https://drive.example.invalid/abc  ')", U['dcc1']) == '已發放結案', 'dcc delivers with link')
+ok(val(f"select delivery_note from requests where id='{R1}'", U['app']) == 'https://drive.example.invalid/abc', 'applicant sees trimmed delivery link')
 expect_err(f"select deliver_request('{R1}', 'Email')", U['dcc2'], '不能發放', 'second dcc cannot deliver again')
 ok(val(f"select count(*) from notifications where request_id='{R1}' and kind='已發放' and recipient_id='{U['app']}'", role=None) == '1', 'applicant notified on delivery')
 ok(val(f"select string_agg(action||coalesce(stage::text,''),',' order by id) from request_events where request_id='{R1}'", U['app']) == '送出,核准1,核准2,發放3', 'event log complete & visible to applicant')
@@ -187,6 +190,15 @@ ok(val(f"with u as (update profiles set is_dcc=true where id='{U['app2']}' retur
 expect_err(f"update profiles set line_user_id='U'||repeat('0',32) where id='{U['app2']}'", U['admin'], 'permission denied', 'admin cannot change line_user_id')
 ok(val("with u as (insert into departments(name) values ('測試課') returning 1) select count(*) from u", U['admin']) == '1', 'admin can add department')
 expect_err("insert into departments(name) values ('測試課2')", U['app'], 'row-level security', 'non-admin cannot add department')
+# 新帳號（待啟用）自動通知系統管理員；已啟用的帳號不通知
+ok(val(f"select count(*) from notifications where kind='新帳號待啟用' and subject_id='{U['off']}' and recipient_id='{U['admin']}'", role=None) == '1', 'new pending account notifies admin')
+ok(val(f"select count(*) from notifications where kind='新帳號待啟用' and subject_id<>'{U['off']}'", role=None) == '0', 'active accounts do not notify admins')
+NEW = str(uuid.uuid4())
+val(f"insert into auth.users values ('{NEW}'); insert into public.profiles (id,line_user_id,display_name,active) values ('{NEW}','U{uuid.uuid4().hex}','示範新人',false);", role=None)
+ok(val(f"select kind||'|'||subject_name||'|'||(doc_no is null)::text from claim_notifications(100) where kind='新帳號待啟用'", role='service_role') == '新帳號待啟用|示範新人|true', 'claim returns new-account notice without request')
+expect_err(f"insert into notifications (recipient_id, kind) values ('{U['admin']}', '新帳號待啟用')", None, 'notifications_target_check', 'new-account notice requires subject', role=None)
+expect_err(f"select _notify_new_account()", U['admin'], 'permission denied', 'trigger function not callable')
+
 # concurrency of doc numbers
 import concurrent.futures as cf
 with cf.ThreadPoolExecutor(8) as ex:

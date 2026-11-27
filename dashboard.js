@@ -259,7 +259,7 @@
     ["formats", "需求格式"], ["need_date", "需要日期"], ["external_note", "外發對象／備註"], ["status", "狀態"],
     ["stage1_result", "第一關"], ["stage1_by", "第一關簽核人"], ["stage1_at", "第一關時間"], ["stage1_reason", "第一關駁回原因"],
     ["stage2_result", "第二關"], ["stage2_by", "第二關簽核人"], ["stage2_at", "第二關時間"], ["stage2_reason", "第二關駁回原因"],
-    ["delivery_method", "發放方式"], ["delivered_by", "發放人"], ["delivered_at", "發放時間"],
+    ["delivery_method", "發放方式"], ["delivery_note", "發放連結／備註"], ["delivered_by", "發放人"], ["delivered_at", "發放時間"],
   ];
   var TIME_COLS = ["created_at", "stage1_at", "stage2_at", "delivered_at"];
 

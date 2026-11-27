@@ -11,6 +11,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 const LIFF_URL = "https://liff.line.me/2012594772-22NJxRHt";
 const ALLOWED_ORIGINS = ["https://ming32409-boop.github.io", "http://localhost:8000"];
 
+// 申請單相關欄位：「新帳號待啟用」通知沒有申請單，這些欄位會是 null
 export type Notice = {
   id: number;
   kind: string;
@@ -25,7 +26,14 @@ export type Notice = {
   stage1_reason: string | null;
   stage2_reason: string | null;
   delivery_method: string | null;
+  delivery_note?: string | null;
+  subject_name?: string | null;
 };
+
+// 通知連結：打開對的分頁，並直接捲到這張單（核准仍要本人在畫面上按按鈕）
+export function link(tab: string, docNo?: string): string {
+  return `${LIFF_URL}?tab=${tab}` + (docNo ? `&doc=${encodeURIComponent(docNo)}` : "");
+}
 
 export type Deps = {
   env: (name: string) => string | undefined;
@@ -71,6 +79,10 @@ function itemsSummary(items: string): string {
 
 // 組成通知文字
 export function buildMessage(n: Notice): string {
+  if (n.kind === "新帳號待啟用") {
+    return [`【新帳號待啟用】${n.subject_name ?? "有同仁"} 剛用 LINE 登入圖面資料申請`,
+      "請為這個帳號開通並設定角色；開通後請對方重新開啟頁面。"].join("\n");
+  }
   const summary = [
     `單號：${n.doc_no}`,
     `申請人：${n.applicant}（${n.department}）`,
@@ -80,19 +92,20 @@ export function buildMessage(n: Notice): string {
   ];
   switch (n.kind) {
     case "待第一關簽核":
-      return ["【待簽核】有一張圖面資料申請等你審核（第一關）", ...summary, "", `簽核：${LIFF_URL}?tab=review`].join("\n");
+      return ["【待簽核】有一張圖面資料申請等你審核（第一關）", ...summary, "", `簽核：${link("review", n.doc_no)}`].join("\n");
     case "待第二關簽核":
-      return ["【待核發】有一張圖面資料申請等你放行（第二關）", ...summary, "", `簽核：${LIFF_URL}?tab=review`].join("\n");
+      return ["【待核發】有一張圖面資料申請等你放行（第二關）", ...summary, "", `簽核：${link("review", n.doc_no)}`].join("\n");
     case "待發放":
-      return ["【待發放】有一張圖面資料申請已核准，請備檔發放", ...summary, "", `處理：${LIFF_URL}?tab=issue`].join("\n");
+      return ["【待發放】有一張圖面資料申請已核准，請備檔發放", ...summary, "", `處理：${link("issue", n.doc_no)}`].join("\n");
     case "已駁回": {
       const reason = n.stage2_reason ?? n.stage1_reason ?? "";
       return [`【已駁回】圖面資料申請 ${n.doc_no} 已被駁回`, `原因：${reason}`, `品號：${itemsSummary(n.items)}`, "",
-        `如需調閱請修正後重新申請：${LIFF_URL}?tab=mine`].join("\n");
+        `如需調閱請修正後重新申請：${link("mine", n.doc_no)}`].join("\n");
     }
     case "已發放":
       return [`【已發放】圖面資料申請 ${n.doc_no} 已發放，請查收`, `發放方式：${n.delivery_method ?? ""}`,
-        `品號：${itemsSummary(n.items)}`, "", `查看：${LIFF_URL}?tab=mine`].join("\n");
+        ...(n.delivery_note ? [`連結／備註：${n.delivery_note}`] : []),
+        `品號：${itemsSummary(n.items)}`, "", `查看：${link("mine", n.doc_no)}`].join("\n");
     default:
       return [`圖面資料申請 ${n.doc_no} 有新的進度`, `查看：${LIFF_URL}`].join("\n");
   }
